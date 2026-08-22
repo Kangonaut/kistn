@@ -20,7 +20,6 @@ services:
       - .:/app
       - app-home:/root
       - ./scripts:/app/scripts
-      - ./tests/borgmatic-config.yaml:/root/.config/borgmatic/config.yaml:ro
 
 volumes:
   storagebox-data:

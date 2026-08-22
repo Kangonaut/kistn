@@ -1,23 +1,21 @@
 import subprocess
-from abc import update_abstractmethods
 from pathlib import Path
 
-import questionary
 import typer
 from rich import print
 from rich.console import Console
 from rich.table import Table
 
-from kistn.prompts import SSH_KEY_GEN_HELP, SSH_KEY_UPLOAD_HELP
-from kistn.subroutines import (check_system_dependencies,
-                               prompt_confirm_with_exit,
+from kistn.borgmatic_config import BorgmaticConfig
+from kistn.subroutines import (add_borgmatic_config_step,
+                               check_system_dependencies, prompt_passphrase,
+                               prompt_source_directories,
                                prompt_storage_box_config,
-                               run_command_within_typer, ssh_config_step,
                                ssh_key_generation_step, update_ssh_config_step,
                                upload_ssh_key_step)
-from kistn.utils import (add_ssh_host_entry, get_days_since_last_backup,
-                         is_host_reachable, record_last_backup,
-                         send_notification)
+from kistn.utils import (generate_borgmatic_config_yaml,
+                         get_days_since_last_backup, is_host_reachable,
+                         record_last_backup, send_notification)
 
 app = typer.Typer(
     help="📦 **kistn**: A CLI manager for Borgmatic and Hetzner Storage Box backups.",
@@ -37,13 +35,21 @@ def setup():
     """
     check_system_dependencies()
 
-    config = prompt_storage_box_config()
+    storagebox_config = prompt_storage_box_config()
 
-    key_path = Path.home() / ".ssh" / config.nickname
+    # SSH setup
+    key_path = Path.home() / ".ssh" / storagebox_config.nickname
+    ssh_key_generation_step(storagebox_config, key_path)
+    update_ssh_config_step(storagebox_config, key_path)
+    upload_ssh_key_step(storagebox_config, key_path)
 
-    ssh_key_generation_step(config, key_path)
-    update_ssh_config_step(config, key_path)
-    upload_ssh_key_step(config, key_path)
+    # Borgmatic configuration
+    directories = prompt_source_directories()
+    passphrase = prompt_passphrase()
+    borgmatic_config = BorgmaticConfig(directories, passphrase)
+
+    yaml = generate_borgmatic_config_yaml(storagebox_config, borgmatic_config)
+    add_borgmatic_config_step(yaml)
 
     print("\n[bold green]✓ Setup complete![/bold green]")
 

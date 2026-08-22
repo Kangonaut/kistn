@@ -5,6 +5,9 @@ import subprocess
 import time
 from pathlib import Path
 
+from kistn.borgmatic_config import BorgmaticConfig
+from kistn.storage_box_config import StorageBoxConfig
+
 CACHE_FILE = Path.home() / ".cache" / "backup_cli_last_run"
 SSH_CONFIG = Path.home() / ".ssh" / "config"
 
@@ -95,3 +98,55 @@ def send_notification(
         subprocess.run(cmd, check=False)
     except Exception:
         pass
+
+
+def generate_borgmatic_config_yaml(
+    storagebox_config: StorageBoxConfig, borgmatic_config: BorgmaticConfig
+) -> str:
+    # add source directories
+    yaml = f"source_directories:\n"
+    for dir in borgmatic_config.directories:
+        yaml += f"  - {dir}\n"
+    yaml += "\n"
+
+    # add exclude patterns
+    yaml += (
+        f"exclude_patterns:\n"
+        f"- '**/node_modules\n"
+        f"  - '**/__pycache__'\n"
+        f"  - '**/.cache'\n"
+        f"  - '**/.Trash*'\n"
+        "\n"
+    )
+
+    # add repository
+    yaml += (
+        f"repositories:\n"
+        f"  - path: ssh://{storagebox_config.nickname}/./{storagebox_config.backup_name}\n"
+        f"    label: {storagebox_config.nickname}\n"
+        "\n"
+    )
+
+    yaml += (
+        f"# storage and encryption\n"
+        f"encryption_passphrase: '{borgmatic_config.passphrase}'\n"
+        f"compression: zstd,3\n"
+        f"\n"
+    )
+
+    yaml += (
+        f"# retention policy\n"
+        f"keep_daily: 7\n"
+        f"keep_weekly: 4\n"
+        f"keep_monthly: 12\n"
+        f"\n"
+    )
+
+    yaml += (
+        f"# consistency checks\n"
+        f"checks:\n"
+        f"  - name: repository\n"
+        f"  - name: archives\n"
+    )
+
+    return yaml

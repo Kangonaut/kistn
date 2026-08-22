@@ -7,3 +7,4 @@ class StorageBoxConfig:
     hostname: str
     port: int
     username: str
+    backup_name: str

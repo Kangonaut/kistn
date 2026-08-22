@@ -44,3 +44,11 @@ def validate_port(text: str) -> bool | str:
         return "Port must be between 1 and 65535."
 
     return True
+
+
+def validate_backup_name(text: str) -> bool | str:
+    if not text.strip():
+        return "Backup name cannot be empty."
+    if not re.match(r"^[a-zA-Z0-9-_]+$", text):
+        return "Invalid backup name format. Please only use: letters, digits, hyphons or underscores."
+    return True

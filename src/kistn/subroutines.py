@@ -8,14 +8,18 @@ from pathlib import Path
 import questionary
 import typer
 from rich import print
+from rich.panel import Panel
+from rich.syntax import Syntax
 from rich.table import Table
 
 from kistn.prompts import SSH_KEY_GEN_HELP, SSH_KEY_UPLOAD_HELP
 from kistn.storage_box_config import StorageBoxConfig
 from kistn.utils import add_ssh_host_entry
-from kistn.validators import (validate_hostname, validate_nickname,
-                              validate_port, validate_username)
+from kistn.validators import (validate_backup_name, validate_hostname,
+                              validate_nickname, validate_port,
+                              validate_username)
 
+BORGMATIC_CONFIG_PATH = Path.home() / ".config" / "borgmatic" / "config.yaml"
 REQUIRED_TOOLS = {
     "borg": "BorgBackup core",
     "borgmatic": "Borgmatic wrapper",
@@ -119,7 +123,21 @@ def prompt_storage_box_config() -> StorageBoxConfig:
     if not username:
         raise typer.Exit(code=1)
 
-    return StorageBoxConfig(nickname, hostname, port, username)
+    # backup name
+    print(
+        "[dim]Under what name do you want to store your backup on the storage box?[/dim]",
+    )
+    backup_name = questionary.text(
+        "backup name:",
+        default="my-backup",
+        validate=validate_backup_name,
+    ).ask()
+    print()
+
+    if not backup_name:
+        raise typer.Exit(code=1)
+
+    return StorageBoxConfig(nickname, hostname, port, username, backup_name)
 
 
 def run_command_within_typer(cmd: subprocess._CMD) -> None:
@@ -171,3 +189,103 @@ def upload_ssh_key_step(config: StorageBoxConfig, key_path: Path):
         run_command_within_typer(
             ["ssh-copy-id", "-s", "-i", f"{key_path}.pub", config.nickname]
         )
+
+
+def prompt_source_directories() -> list[str]:
+    """Loop to collect source directories until the user inputs an empty line."""
+    directories: list[str] = []
+
+    print("\n[bold cyan]Source Directories[/bold cyan]")
+    print(
+        "[dim]Enter directories you want to back up. Press Enter without typing to finish.[/dim]\n"
+    )
+
+    while True:
+        prompt_text = (
+            f"Add directory #{len(directories) + 1}:"
+            if directories
+            else "Add first directory to back up:"
+        )
+
+        path_input = questionary.text(prompt_text).ask()
+
+        # Stop loop if empty input
+        if not path_input or not path_input.strip():
+            if not directories:
+                print("[yellow]⚠️ You must specify at least one directory.[/yellow]")
+                continue
+            break
+
+        resolved_path = Path(path_input.strip()).expanduser().resolve()
+
+        if not resolved_path.exists():
+            print(
+                f"[yellow]⚠️ Warning: '{resolved_path}' does not currently exist, but added anyway.[/yellow]"
+            )
+
+        path_str = str(resolved_path)
+        if path_str in directories:
+            print("[yellow]⚠️ Directory already in list.[/yellow]")
+            continue
+
+        directories.append(path_str)
+        print(f"[green]✔ Added:[/green] {path_str}")
+
+    return directories
+
+
+def prompt_passphrase() -> str:
+    """Prompt for a Borg encryption passphrase with confirmation."""
+    print("\n[bold cyan]Repository Encryption[/bold cyan]")
+    print("[dim]This passphrase protects your Borg repository key.[/dim]\n")
+
+    while True:
+        passphrase = questionary.password("Enter encryption passphrase:").ask()
+        if not passphrase or not passphrase.strip():
+            print("[red]✖ Passphrase cannot be empty.[/red]")
+            continue
+
+        confirm = questionary.password("Confirm encryption passphrase:").ask()
+        if passphrase != confirm:
+            print("[red]✖ Passphrases do not match. Please try again.[/red]")
+            continue
+
+        return passphrase.strip()
+
+
+def add_borgmatic_config_step(
+    content: str,
+    config_path: Path = BORGMATIC_CONFIG_PATH,
+) -> None:
+    """Check for existing config, print/backup if found, and write new config."""
+    print("\n[bold cyan]Borgmatic Configuration[/bold cyan]")
+
+    # ensure target directory exists with restricted access (0700)
+    config_path.parent.mkdir(parents=True, exist_ok=True)
+    config_path.parent.chmod(0o700)
+
+    if config_path.exists():
+        print(f"[yellow]Found existing config file at:[/yellow] {config_path}\n")
+
+        existing_yaml = config_path.read_text()
+        syntax_preview = Syntax(
+            existing_yaml, "yaml", theme="ansi_dark", line_numbers=True
+        )
+        print(Panel(syntax_preview, title="Current config.yaml", border_style="yellow"))
+
+        prompt_confirm_with_exit(
+            "Do you want to overwrite this existing configuration?"
+        )
+
+        # create backup copy
+        backup_path = config_path.with_name("config.yaml.back")
+        shutil.copy(config_path, backup_path)
+        print(f"[green]✔ Old configuration backed up to:[/green] {backup_path}")
+
+    # write new configuration
+    config_path.write_text(content)
+
+    # restrict permissions
+    config_path.chmod(0o600)
+
+    print(f"[bold green]✔ Saved new configuration to:[/bold green] {config_path}")
