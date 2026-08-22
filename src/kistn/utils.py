@@ -33,7 +33,7 @@ def get_days_since_last_backup() -> int | None:
         return None
 
 
-def ensure_ssh_host_entry(
+def add_ssh_host_entry(
     nickname: str, hostname: str, port: int, user: str, key_path: str
 ) -> bool:
     """Idempotently adds or updates host configuration in ~/.ssh/config.

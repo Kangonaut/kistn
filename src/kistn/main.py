@@ -1,20 +1,23 @@
 import subprocess
+from abc import update_abstractmethods
 from pathlib import Path
-from typing import Annotated, Optional
 
 import questionary
 import typer
 from rich import print
-from rich.align import Align
 from rich.console import Console
-from rich.panel import Panel
 from rich.table import Table
 
-from kistn.utils import (ensure_ssh_host_entry, get_days_since_last_backup,
+from kistn.prompts import SSH_KEY_GEN_HELP, SSH_KEY_UPLOAD_HELP
+from kistn.subroutines import (check_system_dependencies,
+                               prompt_confirm_with_exit,
+                               prompt_storage_box_config,
+                               run_command_within_typer, ssh_config_step,
+                               ssh_key_generation_step, update_ssh_config_step,
+                               upload_ssh_key_step)
+from kistn.utils import (add_ssh_host_entry, get_days_since_last_backup,
                          is_host_reachable, record_last_backup,
                          send_notification)
-from kistn.validators import (validate_hostname, validate_nickname,
-                              validate_port, validate_username)
 
 app = typer.Typer(
     help="📦 **kistn**: A CLI manager for Borgmatic and Hetzner Storage Box backups.",
@@ -32,133 +35,15 @@ def setup():
     Generates a dedicated ED25519 key, updates `~/.ssh/config`, copies keys to
     the remote server, and initializes the Borg repository.
     """
-    # print title
-    panel = Panel.fit("[bold blue]Borgmatic Setup Wizard[/bold blue]")
-    centered_renderable = Align.center(panel)
-    console.print(centered_renderable)
+    check_system_dependencies()
 
-    # internal name for storage box
-    print(
-        "[dim]This nickname used internally to identify your storage box and for files (e.g. SSH key file) on your local machine.[/dim]"
-    )
-    nickname = questionary.text(
-        "storage box nickname:",
-        default="pandoras-box",
-        validate=validate_nickname,
-    ).ask()
-    print()
+    config = prompt_storage_box_config()
 
-    if not nickname:
-        raise typer.Exit(code=1)
+    key_path = Path.home() / ".ssh" / config.nickname
 
-    # hetzner storage box hostname
-    print(
-        "[dim]The hostname can be found in the Hetzner Console and should look something like this: uXXXXXX.your-storagebox.de (where X is a digit).[/dim]"
-    )
-    hostname = questionary.text(
-        "storage box hostname: ",
-        default="uXXXXXX.your-storagebox.de",
-        validate=validate_hostname,
-    ).ask()
-    print()
-
-    if not hostname:
-        raise typer.Exit(code=1)
-
-    # hetzner storage box hostname
-    print(
-        "[dim]The SSH port can be found in the Hetzner Console. But it should almost definitely be port 23.[/dim]"
-    )
-    port = questionary.text(
-        "storage box SSH port: ",
-        default="23",
-        validate=validate_port,
-    ).ask()
-    print()
-
-    if not port:
-        raise typer.Exit(code=1)
-    port = int(port)
-
-    # hetzner storage box username
-    print(
-        "[dim]The username can be found in the Hetzner Console and should look something like this: uXXXXXX (where X is a digit). [/dim]",
-    )
-    username = questionary.text(
-        "storage box username:",
-        default="uXXXXXX",
-        validate=validate_username,
-    ).ask()
-    print()
-
-    if not username:
-        raise typer.Exit(code=1)
-
-    # SSH key generation
-    key_path = Path.home() / ".ssh" / nickname
-    if not key_path.exists():
-        gen_ssh_key = questionary.confirm(
-            "Generate dedicated SSH key? (recommended)"
-        ).ask()
-
-        if gen_ssh_key is None:
-            raise typer.Exit(code=1)
-
-        if gen_ssh_key:
-            print(
-                Panel(
-                    "You are going to be asked for a passphrase for the SSH key. If you enter a passphrase, you'll be asked to type it in every time you use it to authenticate yourself in an SSH connection. This is more secure, but also more cumbersome. So pick your poision.\n",
-                    title="[bold blue]Interactive Steps Required[/bold blue]",
-                    border_style="white",
-                    expand=False,
-                )
-            )
-            subprocess.run(
-                ["ssh-keygen", "-t", "ed25519", "-f", str(key_path)], check=True
-            )
-            print("[green]✓ SSH key generated.[/green]")
-
-    # add entry to SSH config
-    added = ensure_ssh_host_entry(
-        nickname=nickname,
-        hostname=hostname,
-        port=port,
-        user=username,
-        key_path=str(key_path),
-    )
-    if added:
-        print("[green]✓ Added Host entry to ~/.ssh/config[/green]")
-    else:
-        print("[blue]i SSH host entry already exists. Skipping.[/blue]")
-    print()
-
-    # upload SSH key to storage box
-    upload_ssh = questionary.confirm(
-        "Upload SSH key to Storage Box now? (recommended)"
-    ).ask()
-
-    if upload_ssh is None:
-        raise typer.Exit(code=1)
-
-    if upload_ssh:
-        print(
-            Panel(
-                "SSH will now initiate a first-time connection to Hetzner:\n\n"
-                "1. [bold white]Accept Fingerprint:[/bold white] Type [cyan]yes[/cyan] when prompted to trust the host key.\n"
-                "[dim]  💡 NOTE: If you want to check the authenticity of the server, you can check if the fingerprint matches one of the fingerprints mentioned in the [cyan][link=https://docs.hetzner.com/storage/storage-box/general#ssh-host-keys]official Hetzner documentation[/link][/cyan].[/dim]\n\n"
-                "2. [bold white]Enter Password:[/bold white] Type your Hetzner Storage Box password when asked.\n",
-                title="[bold blue]Interactive Steps Required[/bold blue]",
-                border_style="white",
-                expand=False,
-            )
-        )
-
-        cmd = ["ssh-copy-id", "-s", "-i", f"{key_path}.pub", nickname]
-        try:
-            subprocess.run(cmd, check=True)
-        except subprocess.CalledProcessError as error:
-            print(f"[bold red]ERROR: {error}[/bold red]")
-            raise typer.Exit(code=1)
+    ssh_key_generation_step(config, key_path)
+    update_ssh_config_step(config, key_path)
+    upload_ssh_key_step(config, key_path)
 
     print("\n[bold green]✓ Setup complete![/bold green]")
 
