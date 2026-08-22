@@ -7,7 +7,8 @@ from pathlib import Path
 
 import questionary
 import typer
-from rich import print
+from rich import print, status
+from rich.console import Console
 from rich.panel import Panel
 from rich.syntax import Syntax
 from rich.table import Table
@@ -19,7 +20,10 @@ from kistn.validators import (validate_backup_name, validate_hostname,
                               validate_nickname, validate_port,
                               validate_username)
 
+console = Console()
+
 BORGMATIC_CONFIG_PATH = Path.home() / ".config" / "borgmatic" / "config.yaml"
+PAPER_KEY_PATH = Path("borg-paper-key.txt")
 REQUIRED_TOOLS = {
     "borg": "BorgBackup core",
     "borgmatic": "Borgmatic wrapper",
@@ -289,3 +293,89 @@ def add_borgmatic_config_step(
     config_path.chmod(0o600)
 
     print(f"[bold green]✔ Saved new configuration to:[/bold green] {config_path}")
+
+
+def init_borg_repository(config_path: Path = BORGMATIC_CONFIG_PATH) -> None:
+    """Initialize the Borg repository via borgmatic."""
+    print("\n[bold cyan]Initializing Borg Repository[/bold cyan]")
+
+    cmd = [
+        "borgmatic",
+        "rcreate",
+        "--config",
+        str(config_path),
+        "--encryption",
+        "repokey-blake2",
+    ]
+
+    with console.status("[bold green]Creating repository on Storage Box..."):
+        result = subprocess.run(cmd, capture_output=True, text=True)
+
+    if result.returncode == 0:
+        print("[bold green]✔ Repository initialized successfully![/bold green]")
+    else:
+        # Check if error is because repo already exists
+        if "already exists" in result.stderr.lower():
+            print(
+                "[yellow]⚠️ Repository is already initialized. Skipping creation.[/yellow]"
+            )
+        else:
+            print(
+                Panel(
+                    f"[bold red]Failed to initialize repository:[/bold red]\n\n{result.stderr}",
+                    border_style="red",
+                    title="Error",
+                )
+            )
+            raise typer.Exit(code=1)
+
+
+def export_paper_key(
+    config_path: Path = BORGMATIC_CONFIG_PATH,
+    output_file: Path = PAPER_KEY_PATH,
+) -> None:
+    """Export the Borg key formatted for physical paper backup."""
+    console.print("\n[bold cyan]Emergency Key Export[/bold cyan]")
+    console.print(
+        "[dim]If you lose access to your machine, you will need this paper key "
+        "and your passphrase to recover your data.[/dim]\n"
+    )
+
+    if not questionary.confirm(
+        "Export paper key now? (recommended)", default=True
+    ).ask():
+        console.print("[yellow]Skipping paper key export.[/yellow]")
+        return
+
+    cmd = ["borgmatic", "key", "export", "--paper", "--config", str(config_path)]
+
+    with console.status("[bold green]Exporting paper key..."):
+        result = subprocess.run(cmd, capture_output=True, text=True)
+
+    if result.returncode != 0:
+        console.print(f"[bold red]✖ Failed to export key:[/bold red] {result.stderr}")
+        return
+
+    paper_key_text = result.stdout.strip()
+
+    # Print to console in a panel
+    console.print(
+        Panel(
+            f"[bold white]{paper_key_text}[/bold white]",
+            title="[bold yellow]📄 Emergency Paper Key[/bold yellow]",
+            border_style="yellow",
+            expand=False,
+        )
+    )
+
+    # Save to file
+    save_to_file = questionary.confirm(
+        f"Save paper key to file ({output_file})?", default=True
+    ).ask()
+
+    if save_to_file:
+        output_file.write_text(paper_key_text)
+        output_file.chmod(0o600)  # Restrict permissions
+        console.print(
+            f"[green]✔ Saved paper key with permissions 0600 to:[/green] {output_file.resolve()}"
+        )

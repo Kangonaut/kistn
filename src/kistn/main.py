@@ -8,7 +8,8 @@ from rich.table import Table
 
 from kistn.borgmatic_config import BorgmaticConfig
 from kistn.subroutines import (add_borgmatic_config_step,
-                               check_system_dependencies, prompt_passphrase,
+                               check_system_dependencies, export_paper_key,
+                               init_borg_repository, prompt_passphrase,
                                prompt_source_directories,
                                prompt_storage_box_config,
                                ssh_key_generation_step, update_ssh_config_step,
@@ -51,7 +52,15 @@ def setup():
     yaml = generate_borgmatic_config_yaml(storagebox_config, borgmatic_config)
     add_borgmatic_config_step(yaml)
 
-    print("\n[bold green]✓ Setup complete![/bold green]")
+    # initialize repo
+    init_borg_repository()
+
+    # export paper key
+    export_paper_key()
+
+    console.print(
+        "\n[bold green]🎉 Setup complete! Run 'kistn run' to initiate your first backup.[/bold green]\n"
+    )
 
 
 @app.command()

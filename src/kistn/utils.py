@@ -112,7 +112,7 @@ def generate_borgmatic_config_yaml(
     # add exclude patterns
     yaml += (
         f"exclude_patterns:\n"
-        f"- '**/node_modules\n"
+        f"  - '**/node_modules'\n"
         f"  - '**/__pycache__'\n"
         f"  - '**/.cache'\n"
         f"  - '**/.Trash*'\n"
