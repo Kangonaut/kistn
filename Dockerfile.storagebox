@@ -1,0 +1,15 @@
+FROM debian:bookworm-slim
+
+RUN apt-get update && apt-get install -y \
+    openssh-server \
+    borgbackup \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN mkdir /var/run/sshd && \
+    useradd -m -s /bin/bash u123456 && \
+    echo 'u123456:password' | chpasswd && \
+    mkdir -p /home/u123456/.ssh /home/u123456/backup && \
+    chown -R u123456:u123456 /home/u123456
+
+EXPOSE 22
+CMD ["/usr/sbin/sshd", "-D"]

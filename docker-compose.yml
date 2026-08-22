@@ -1,0 +1,27 @@
+services:
+  mock-storagebox:
+    build:
+      context: .
+      dockerfile: Dockerfile.storagebox
+    container_name: mock-storagebox
+    volumes:
+      - storagebox-data:/home/u123456/backup
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: kistn-cli-dev
+    tty: true
+    stdin_open: true
+    depends_on:
+      - mock-storagebox
+    volumes:
+      - .:/app
+      - app-home:/root
+      - ./scripts:/app/scripts
+      - ./tests/borgmatic-config.yaml:/root/.config/borgmatic/config.yaml:ro
+
+volumes:
+  storagebox-data:
+  app-home:
