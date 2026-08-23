@@ -1,15 +1,37 @@
+import os
 import re
 import shutil
 import socket
 import subprocess
 import time
+from dataclasses import asdict
 from pathlib import Path
+
+import yaml
 
 from kistn.borgmatic_config import BorgmaticConfig
 from kistn.storage_box_config import StorageBoxConfig
 
-CACHE_FILE = Path.home() / ".cache" / "backup_cli_last_run"
+CONFIG_DIR = Path.home() / ".config" / "kistn"
+CACHE_DIR = Path.home() / ".cache" / "kistn"
 SSH_CONFIG = Path.home() / ".ssh" / "config"
+
+
+def get_backup_profiles() -> list[str]:
+    return [file.name for file in CONFIG_DIR.iterdir()]
+
+
+def save_storagebox_config(config: StorageBoxConfig, path: Path):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with open(path, "w+") as file:
+        yaml.dump(asdict(config), file, sort_keys=False)
+
+
+def load_storagebox_config(path: Path) -> StorageBoxConfig:
+    with open(path, "r") as file:
+        data = yaml.safe_load(file)
+        config = StorageBoxConfig(**data)
+        return config
 
 
 def is_host_reachable(host: str, port: int = 23, timeout: float = 2.0) -> bool:
@@ -21,16 +43,19 @@ def is_host_reachable(host: str, port: int = 23, timeout: float = 2.0) -> bool:
         return False
 
 
-def record_last_backup() -> None:
-    CACHE_FILE.parent.mkdir(parents=True, exist_ok=True)
-    CACHE_FILE.write_text(str(int(time.time())))
+def record_last_backup(profile: str) -> None:
+    path = CACHE_DIR / profile
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(str(int(time.time())))
 
 
-def get_days_since_last_backup() -> int | None:
-    if not CACHE_FILE.exists():
+def get_days_since_last_backup(profile: str) -> int | None:
+    path = CACHE_DIR / profile
+
+    if not path.exists():
         return None
     try:
-        last_time = int(CACHE_FILE.read_text().strip())
+        last_time = int(path.read_text().strip())
         return int((time.time() - last_time) / 86400)
     except ValueError:
         return None

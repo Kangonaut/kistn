@@ -1,11 +1,13 @@
 import subprocess
 from pathlib import Path
 
+import questionary
 import typer
 from rich import print
 from rich.console import Console
 from rich.table import Table
 
+from kistn import storage_box_config
 from kistn.borgmatic_config import BorgmaticConfig
 from kistn.subroutines import (add_borgmatic_config_step,
                                check_system_dependencies, export_paper_key,
@@ -14,9 +16,11 @@ from kistn.subroutines import (add_borgmatic_config_step,
                                prompt_storage_box_config,
                                ssh_key_generation_step, update_ssh_config_step,
                                upload_ssh_key_step)
-from kistn.utils import (generate_borgmatic_config_yaml,
-                         get_days_since_last_backup, is_host_reachable,
-                         record_last_backup, send_notification)
+from kistn.utils import (CONFIG_DIR, generate_borgmatic_config_yaml,
+                         get_backup_profiles, get_days_since_last_backup,
+                         is_host_reachable, load_storagebox_config,
+                         record_last_backup, save_storagebox_config,
+                         send_notification)
 
 app = typer.Typer(
     help="📦 **kistn**: A CLI manager for Borgmatic and Hetzner Storage Box backups.",
@@ -36,7 +40,10 @@ def setup():
     """
     check_system_dependencies()
 
+    # storage box config
     storagebox_config = prompt_storage_box_config()
+    config_path = CONFIG_DIR / storagebox_config.nickname
+    save_storagebox_config(storagebox_config, config_path)
 
     # SSH setup
     key_path = Path.home() / ".ssh" / storagebox_config.nickname
@@ -68,8 +75,24 @@ def run():
     """
     Run a backup with connection pre-flight checks.
     """
-    console.print("[blue]Checking connection to Storage Box...[/blue]")
-    if not is_host_reachable(STORAGE_BOX_HOST, port=23):
+
+    profiles = get_backup_profiles()
+
+    if not profiles:
+        print("No backup profiles found. Please run `kistn setup` first.")
+        raise typer.Exit(code=1)
+    else:
+        selected_profile: str | None = questionary.select(
+            "Select a backup profile:", choices=profiles
+        ).ask()
+
+        if not selected_profile:
+            raise typer.Exit(code=1)
+
+    storagebox_config = load_storagebox_config(CONFIG_DIR / selected_profile)
+
+    print("[blue]Checking connection to storage box ...[/blue]")
+    if not is_host_reachable(storagebox_config.hostname, port=storagebox_config.port):
         console.print(
             "[bold red]:x: Storage Box is unreachable. Check connection/VPN.[/bold red]"
         )
@@ -84,10 +107,12 @@ def run():
     with console.status(
         "[bold green]Running Borgmatic backup...[/bold green]", spinner="dots"
     ):
-        result = subprocess.run(["borgmatic", "create", "--verbosity", "1", "--stats"])
+        result = subprocess.run(
+            ["borgmatic", "create", "--verbosity", "1", "--stats", "--progress"]
+        )
 
     if result.returncode == 0:
-        record_last_backup()
+        record_last_backup(selected_profile)
         console.print("[bold green]✔ Backup completed successfully![/bold green]")
         send_notification(
             title="Backup Successful",
@@ -111,21 +136,23 @@ def check_shell(
     desktop_notify: bool = typer.Option(True, help="Send a desktop popup if overdue"),
 ):
     """Fast, silent check for .zshrc integration. Prints banner and optional popup if overdue."""
-    days = get_days_since_last_backup()
-    if days is not None and days > threshold:
-        msg = f"Your last backup was {days} days ago. Run 'backup run' to sync."
+    profiles = get_backup_profiles()
+    for profile in profiles:
+        days = get_days_since_last_backup(profile)
+        if days is not None and days > threshold:
+            msg = f"{profile}: Your last backup was {days} days ago. Run 'kistn run' to sync."
 
-        # Terminal output
-        console.print(f"[bold yellow]⚠️  Backup Warning:[/bold yellow] {msg}")
+            # Terminal output
+            print(f"[bold yellow]⚠️  Backup Warning:[/bold yellow] {msg}")
 
-        # Desktop notification
-        if desktop_notify:
-            send_notification(
-                title="Backup Overdue",
-                message=msg,
-                urgency="critical",
-                icon="dialog-warning",
-            )
+            # Desktop notification
+            if desktop_notify:
+                send_notification(
+                    title="Backup Overdue",
+                    message=msg,
+                    urgency="critical",
+                    icon="dialog-warning",
+                )
 
 
 @app.command()
