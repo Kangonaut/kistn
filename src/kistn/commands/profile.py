@@ -18,7 +18,7 @@ console = Console()
 def create(
     name: str | None = Option(
         default=None,
-        callback=validators.validate_typer_param(validators.validate_name),
+        callback=validators.validate_typer_param(validators.validate_name, "name"),
     ),
     description: str | None = Option(
         default=None,
@@ -36,7 +36,7 @@ def create(
     try:
         if not name:
             name = questionary.text(
-                message="Name: ",
+                message="Name:",
                 validate=validators.validate_unique_name(profile_names),
             ).unsafe_ask()
         elif name in profile_names:
@@ -44,7 +44,7 @@ def create(
 
         if not description:
             description = questionary.text(
-                message="Description: ",
+                message="Description:",
             ).unsafe_ask()
 
         if not frequency:
@@ -87,12 +87,14 @@ def query():
     profiles_list.sort(key=lambda p: p.name)
 
     utils.console.print_profiles(profiles_list)
+    console.print(f"Total: {len(profiles)}")
 
 
+@app.command("delete")
 @app.command()
 def remove(
     name: str | None = Argument(
-        callback=validators.validate_typer_param(validators.validate_name),
+        callback=validators.validate_typer_param(validators.validate_name, "name"),
     ),
 ):
     profiles: dict[str, Profile] = utils.profile.load()
@@ -100,7 +102,7 @@ def remove(
     try:
         if not name:
             name = questionary.text(
-                message="Name: ",
+                message="Name:",
                 validate=validators.validate_name,
             ).unsafe_ask()
 
@@ -113,4 +115,4 @@ def remove(
     del profiles[name]  # type: ignore
 
     utils.profile.save(profiles)
-    utils.console.info(f"Profile remove! Total count: {len(profiles)}")
+    utils.console.info(f"Profile removed! Total count: {len(profiles)}")

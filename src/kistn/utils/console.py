@@ -2,7 +2,7 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
-from kistn.models import Profile
+from kistn.models import Profile, Remote
 
 console = Console()
 
@@ -26,6 +26,16 @@ def error(message: str):
 def abort_with_error(message: str) -> None:
     error(message)
     raise typer.Exit(code=1)
+
+
+def abort():
+    console.print("\nAborted.")
+    raise typer.Exit(code=0)
+
+
+def abort_with_message(message: str):
+    console.print(message)
+    raise typer.Exit(code=0)
 
 
 def print_profiles(profiles: list[Profile]):
@@ -53,11 +63,28 @@ def print_profiles(profiles: list[Profile]):
     console.print(table)
 
 
-def abort():
-    console.print("\nAborted.")
-    raise typer.Exit(code=0)
+def print_remotes(remotes: list[Remote]):
+    if not remotes:
+        console.print(
+            "No remote connections found. Create a profile using [cyan]`kistn remote create`[/cyan]."
+        )
+        return
 
+    table = Table(box=None)
 
-def abort_with_message(message: str):
-    console.print(message)
-    raise typer.Exit(code=0)
+    table.add_column("Name", style="bold green")
+    table.add_column("Hostname", style="white")
+    table.add_column("Port", style="white")
+    table.add_column("Username", style="white")
+    table.add_column("Description", style="dim")
+
+    for remote in remotes:
+        table.add_row(
+            remote.name,
+            remote.hostname,
+            str(remote.port),
+            remote.username,
+            remote.description or "-",
+        )
+
+    console.print(table)

@@ -5,10 +5,11 @@ from pydantic import BaseModel, Field
 
 
 class Remote(BaseModel):
+    name: str
+    description: str
     hostname: str
     port: int = Field(default=23, ge=1, le=65535)
     username: str
-    name: str
 
 
 class BorgmaticRepository(BaseModel):

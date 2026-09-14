@@ -10,11 +10,12 @@ CONFIG_FILE = CONFIG_DIR / "config.yaml"
 
 CACHE_DIR = dirs.user_cache_path
 PROFILES_CACHE_FILE = CACHE_DIR / "profiles.yaml"
+REMOTES_CACHE_FILE = CACHE_DIR / "remotes.yaml"
 
 SSH_DIR = Path.home() / ".ssh"
 SSH_CONFIG = SSH_DIR / "config"
 
-BORGMATIC_CONFIG_DIR = CONFIG_DIR / "borgmatic"
+BORGMATIC_CONFIG_DIR = CONFIG_DIR / "borgmatic.d"
 BORGMATIC_EXCLUDE_PATH = [
     "**/node_modules",
     "**/__pycache__",

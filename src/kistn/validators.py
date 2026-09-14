@@ -86,12 +86,12 @@ def validate_port(text: str) -> bool | str:
     return True
 
 
-def validate_typer_param(func):
+def validate_typer_param(func, name: str):
     def _validate(text: str | None):
         if text is not None:
             result = func(text)
             if result != True:
-                utils.console.abort_with_error(result)
+                utils.console.abort_with_error(f"Invalid input for {name}. {result}")
 
         return text
 
