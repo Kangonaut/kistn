@@ -4,7 +4,7 @@ from typing import Self
 from pydantic import BaseModel, Field
 
 
-class RemoteConfig(BaseModel):
+class Remote(BaseModel):
     hostname: str
     port: int = Field(default=23, ge=1, le=65535)
     username: str
@@ -28,6 +28,7 @@ class BorgmaticConfig(BaseModel):
     # storage and encryption
     encryption_passphrase: str
     compression: str
+    archive_name_format: str  # prefix-{hostname}-{now}
 
     # retention policy
     keep_daily: int
@@ -38,9 +39,8 @@ class BorgmaticConfig(BaseModel):
     checks: list[BorgmaticCheck]
 
 
-class BackupConfig:
+class Profile(BaseModel):
     name: str
     description: str
-    remind_frequency: int | None
-    remote: RemoteConfig
-    borgmatic: BorgmaticConfig
+    frequency: int
+    automatic: bool

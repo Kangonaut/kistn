@@ -1,27 +1,24 @@
 from pathlib import Path
-from typing import ClassVar, TypeVar
+from typing import TypeVar
 
-import yaml
 from pydantic import BaseModel
 
-from kistn.models import BorgmaticConfig
+from kistn import consts
+from kistn.config import Settings
 
-
-def save_config(path: Path, config: BaseModel) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with open(path, "w") as file:
-        yaml.safe_dump(
-            config.model_dump(mode="json"),
-            file,
-            sort_keys=False,
-            default_flow_style=False,
-        )
-
+from . import io
 
 T = TypeVar("T", bound=BaseModel)
 
 
-def load_config(path: Path, model_class: type[T]) -> T:
-    with open(path, "r") as file:
-        raw_config = yaml.safe_load(file)
-    return model_class.model_validate(raw_config)
+def load(path: Path = consts.CONFIG_FILE) -> Settings:
+    if not path.exists():
+        print("Config file does not exist. Please run `kistn setup` first.")
+        raise SystemExit(1)
+
+    return io.load_pydantic_from_yaml(Settings, path)
+
+
+def save(config: Settings, path: Path = consts.CONFIG_FILE) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    io.save_pydantic_to_yaml(config, path)
