@@ -6,23 +6,24 @@ console = Console()
 
 
 def hint(message: str):
-    console.print(f"[dim]{message}[/dim]")
+    # Italicizing hints helps separate them from standard text
+    console.print(f"[dim italic]💡 {message}[/dim italic]")
 
 
 def info(message: str):
-    console.print(f"[bold blue]INFO:[/bold blue] {message}")
+    console.print(f"[bold blue]ℹ INFO:[/bold blue] {message}")
 
 
 def success(message: str):
-    console.print(f"[bold green]SUCCESS:[/bold green] {message}")
+    console.print(f"[bold green]✔ SUCCUESS:[/bold green] {message}")
 
 
 def warn(message: str):
-    console.print(f"[bold yellow]WARN:[/bold yellow] {message}")
+    console.print(f"[bold yellow]⚠ WARN:[/bold yellow] {message}")
 
 
 def error(message: str):
-    console.print(f"[bold red]ERROR:[/bold red] {message}")
+    console.print(f"[bold red]✖ ERROR:[/bold red] {message}")
 
 
 def abort_with_error(message: str) -> None:
