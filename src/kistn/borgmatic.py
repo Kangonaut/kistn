@@ -2,6 +2,8 @@ from pathlib import Path
 
 from pydantic import BaseModel, Field
 
+from kistn import consts, utils
+
 
 class BorgmaticRepository(BaseModel):
     path: str
@@ -29,3 +31,16 @@ class BorgmaticConfig(BaseModel):
 
     # consistency checks
     checks: list[BorgmaticCheck]
+
+    @classmethod
+    def get_path(cls, name: str) -> Path:
+        return consts.BORGMATIC_CONFIG_DIR / f"kistn.{name}"
+
+    @classmethod
+    def load(cls, name: str) -> BorgmaticConfig:
+        return utils.io.load_pydantic_from_yaml(BorgmaticConfig, cls.get_path(name))
+
+    def save(self, name: str):
+        path = consts.BORGMATIC_CONFIG_DIR / f"kistn.{name}"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        utils.io.save_pydantic_to_yaml(self, self.get_path(name))

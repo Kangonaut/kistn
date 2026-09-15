@@ -1,5 +1,6 @@
 import typer
 from rich.console import Console
+from rich.panel import Panel
 from rich.table import Table
 
 console = Console()
@@ -39,3 +40,13 @@ def abort():
 def abort_with_message(message: str):
     console.print(message)
     raise typer.Exit(code=0)
+
+
+def print_command(command: str):
+    command_panel = Panel(
+        f"[bold cyan]$ {command}[/bold cyan]",
+        expand=True,
+        border_style="blue",
+        padding=(0, 3),
+    )
+    console.print(command_panel)

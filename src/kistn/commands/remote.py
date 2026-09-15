@@ -182,8 +182,8 @@ def create(
 
     console.print(
         f"Please run the following command to initialize the remote host:\n\n",
-        f"  [cyan]kistn remote init {r.name} <HOST-PASSWORD>[/cyan]\n",
     )
+    utils.console.print_command(f"kistn remote init {r.name} <HOST-PASSWORD>")
 
 
 @app.command("list")
@@ -200,9 +200,7 @@ def query():
 @app.command("delete")
 @app.command()
 def remove(
-    name: str = Argument(
-        callback=validators.validate_typer_param(validators.validate_name, "name")
-    ),
+    name: str = Argument(),
 ):
     remotes = remote.load()
 
@@ -218,9 +216,7 @@ def remove(
 
 @app.command()
 def init(
-    name: str = Argument(
-        callback=validators.validate_typer_param(validators.validate_name, "name"),
-    ),
+    name: str = Argument(),
     password: str = typer.Argument(),
 ):
     remotes = remote.load()

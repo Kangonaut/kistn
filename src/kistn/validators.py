@@ -3,6 +3,12 @@ import re
 from kistn import utils
 
 
+def validate_encryption_passphrase(text: str) -> bool | str:
+    if not text or not text.strip():
+        return "Cannot be empty."
+    return True
+
+
 def validate_filename(text: str) -> bool | str:
     if not text.strip():
         return "Cannot be empty."
@@ -86,6 +92,15 @@ def validate_port(text: str) -> bool | str:
     return True
 
 
+def validate_compression_specifier(text: str) -> bool | str:
+    pattern = r"^(auto,)?(none|lz4|zstd(,(2[0-2]|1[0-9]|[1-9]))?|(zlib|lzma)(,[0-9])?)$"
+
+    if bool(re.match(pattern, text)):
+        return True
+
+    return "Invalid compression specifier. See here: [link=https://manpages.debian.org/testing/borgbackup/borg-compression.1.en.html][cyan]https://manpages.debian.org/testing/borgbackup/borg-compression.1.en.html[/cyan][/link]"
+
+
 def validate_typer_param(func, name: str):
     def _validate(text: str | None):
         if text is not None:
@@ -96,3 +111,9 @@ def validate_typer_param(func, name: str):
         return text
 
     return _validate
+
+
+def validate_at_least_one(choices: list[str]) -> bool | str:
+    if not choices:
+        return "You must select at least one option."
+    return True

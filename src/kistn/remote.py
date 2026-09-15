@@ -5,6 +5,7 @@ from rich.console import Console
 from rich.table import Table
 
 from kistn import consts, utils
+from kistn.borgmatic import BorgmaticRepository
 
 console = Console()
 
@@ -56,6 +57,12 @@ class Remote(BaseModel):
         self.ssh_key_file.unlink(missing_ok=True)
         self.public_ssh_key_file.unlink(missing_ok=True)
         self.ssh_config_file.unlink(missing_ok=True)
+
+    def to_borgmatic_repo(self) -> BorgmaticRepository:
+        return BorgmaticRepository(
+            path=f"ssh://{self.ssh_name}/./kistn",
+            label=self.name,
+        )
 
 
 def load(path: Path = consts.REMOTES_CACHE_FILE) -> dict[str, Remote]:
