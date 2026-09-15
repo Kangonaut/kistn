@@ -2,15 +2,6 @@ from pathlib import Path
 
 from pydantic import BaseModel, Field
 
-from kistn import utils
-
-
-class RemoteConfig(BaseModel):
-    hostname: str
-    port: int = Field(default=23, ge=1, le=65535)
-    username: str
-    name: str
-
 
 class BorgmaticRepository(BaseModel):
     path: str
@@ -38,27 +29,3 @@ class BorgmaticConfig(BaseModel):
 
     # consistency checks
     checks: list[BorgmaticCheck]
-
-
-class BackupProfile(BaseModel):
-    name: str
-    description: str
-    frequency: int
-    automatic: bool
-
-
-class Settings(BaseModel):
-    pass
-
-
-_settings = None
-
-
-def __getattr__(name: str):
-    # lazy load settings
-    global _settings
-    if name == "settings":
-        if _settings is None:
-            _settings = utils.config.load()
-        return _settings
-    raise AttributeError(f"Module {__name__!r} has no attribute {name}.")

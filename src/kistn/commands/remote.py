@@ -1,15 +1,73 @@
 import questionary
 import typer
-from questionary import question
+from rich.align import Align
 from rich.console import Console
+from rich.panel import Panel
 from typer.params import Argument
 
-from kistn import utils, validators
-from kistn.models import Remote
+from kistn import consts, remote, utils, validators
+from kistn.remote import Remote
+from kistn.utils.console import abort_with_error
 
 app = typer.Typer()
 
 console = Console()
+
+
+def create_ssh_key(r: Remote, passphrase: str):
+    r.create_ssh_key(passphrase)
+    path = r.ssh_key_file.resolve()
+    utils.console.success(
+        f"SSH key file created: [cyan][link={path.as_uri()}]{path}[/link][/cyan]"
+    )
+
+
+def create_ssh_config(r: Remote):
+    r.write_ssh_config()
+    path = r.ssh_config_file.resolve()
+    utils.console.success(
+        f"SSH config file created: [cyan][link={path.as_uri()}]{path}[/link][/cyan]"
+    )
+
+
+def run_ssh_key_upload(r: Remote, password: str):
+    try:
+        with console.status("Uploading SSH key...", spinner="dots"):
+            r.upload_ssh_key(password)
+    except Exception as ex:
+        abort_with_error(f"SSH key upload failed. {ex}")
+
+    utils.console.success(f"SSH key uploaded!")
+
+
+def ensure_known_host(r: Remote) -> bool:
+    with console.status("Checking if the remote host is known..."):
+        is_known = utils.ssh.is_host_in_known_hosts(r.hostname)
+
+    # if the host is known, done!
+    if is_known:
+        utils.console.success("Remote host is already known!")
+        return True
+
+    utils.console.info("Remote host is not yet known.")
+
+    with console.status("Checking remote host's fingerprint..."):
+        key_line = utils.ssh.verify_host_key(r.hostname)
+
+    # if the host's fingerprint cannot be verified, done! (with warning message)
+    if not key_line:
+        utils.console.warn(
+            f"The remote host's fingerprint could not be verified. If the remote host is NOT a Hetzner storage box, this is to to be expected. Either add the fingerprint to the [cyan]`trusted_ssh_fingerprints`[/cyan] in the config file or connect to the host via [cyan]`ssh`[/cyan] to add the host's key to the known hosts."
+        )
+        return False
+
+    utils.console.success("Verified host's fingerprint!")
+
+    with console.status("Adding host to known hosts..."):
+        utils.ssh.add_to_known_hosts(key_line)
+
+    utils.console.success("Added host to known hosts.")
+    return True
 
 
 @app.command("add")
@@ -36,8 +94,14 @@ def create(
             validators.validate_username, "username"
         ),
     ),
+    passphrase: str | None = typer.Option(
+        default=None,
+    ),
+    skip_ssh_key_upload: bool = typer.Option(
+        default=False,
+    ),
 ):
-    remotes = utils.remote.load()
+    remotes = remote.load()
     remote_names = set(remotes.keys())
 
     try:
@@ -52,27 +116,49 @@ def create(
         if not description:
             description = questionary.text(message="Description:").unsafe_ask()
 
+        utils.console.hint(
+            "The hostname can be found in the Hetzner Console and should look something like this: uXXXXXX.your-storagebox.de (where X is a digit)."
+        )
         if not hostname:
             hostname = questionary.text(
-                message="Hostname:", validate=validators.validate_hostname
+                message="Hostname:",
+                validate=validators.validate_hostname,
+                default="uXXXXXX.your-storagebox.de",
             ).unsafe_ask()
 
+        utils.console.hint(
+            "The SSH port can be found in the Hetzner Console. But it should almost definitely be port 23."
+        )
         if not port:
             port = int(
                 questionary.text(
-                    message="Port:", validate=validators.validate_port
+                    message="Port:",
+                    validate=validators.validate_port,
+                    default="23",
                 ).unsafe_ask()
             )
 
+        utils.console.hint(
+            "The username can be found in the Hetzner Console and should look something like this: uXXXXXX (where X is a digit)."
+        )
         if not username:
             username = questionary.text(
                 message="Username:",
+                default="uXXXXXX",
                 validate=validators.validate_username,
+            ).unsafe_ask()
+
+        utils.console.hint(
+            "The passphrase is used to secure the SSH key file. If you enter a passphrase, you will be asked for that passphrase every time you run the backup. This is more secure, but also more tedious. If you don't want a passphrase, simply press enter."
+        )
+        if not passphrase:
+            passphrase = questionary.text(
+                message="Passphrase:",
             ).unsafe_ask()
     except KeyboardInterrupt:
         utils.console.abort()
 
-    remote = Remote(
+    r = Remote(
         name=name,  # type: ignore
         description=description,  # type: ignore
         hostname=hostname,  # type: ignore
@@ -80,46 +166,73 @@ def create(
         username=username,  # type: ignore
     )
 
-    remotes[remote.name] = remote
-    utils.remote.save(remotes)
+    # SSH init
+    utils.ssh.init()
 
-    utils.console.info(f"Remote connection added! Total count: {len(remotes)}")
+    # SSH key file
+    create_ssh_key(r, passphrase)  # type: ignore
+
+    # SSH config file
+    create_ssh_config(r)
+
+    # add to remotes
+    remotes[r.name] = r
+    remote.save(remotes)
+    utils.console.success(f"Remote host added! Total count: {len(remotes)}")
+
+    console.print(
+        f"Please run the following command to initialize the remote host:\n\n",
+        f"  [cyan]kistn remote init {r.name} <HOST-PASSWORD>[/cyan]\n",
+    )
 
 
 @app.command("list")
 @app.command()
 def query():
-    remotes = utils.remote.load()
+    remotes = remote.load()
     remotes_list = list(remotes.values())
     remotes_list.sort(key=lambda r: r.name)
 
-    utils.console.print_remotes(remotes_list)
-    console.print(f"Total: {len(remotes)}")
+    remote.print_remotes(remotes_list)
+    console.print(f"\nTotal: {len(remotes)}")
 
 
 @app.command("delete")
 @app.command()
 def remove(
-    name: str | None = Argument(
-        callback=validators.validate_typer_param(validators.validate_name, "name"),
+    name: str = Argument(
+        callback=validators.validate_typer_param(validators.validate_name, "name")
     ),
 ):
-    remotes = utils.remote.load()
-
-    try:
-        if not name:
-            name = questionary.text(
-                message="Name:",
-                validate=validators.validate_name,
-            ).unsafe_ask()
-
-    except KeyboardInterrupt:
-        utils.console.abort()
+    remotes = remote.load()
 
     if name not in remotes:
-        utils.console.abort_with_message("Remote connection doesn't exist.")
+        utils.console.abort_with_message("Remote host doesn't exist.")
 
+    remotes[name].remove_files()  # type: ignore
     del remotes[name]  # type: ignore
 
-    utils.remote.save(remotes)
-    utils.console.info(f"Remote connection removed! Total count: {len(remotes)}")
+    remote.save(remotes)
+    utils.console.success(f"Remote host removed! Total count: {len(remotes)}")
+
+
+@app.command()
+def init(
+    name: str = Argument(
+        callback=validators.validate_typer_param(validators.validate_name, "name"),
+    ),
+    password: str = typer.Argument(),
+):
+    remotes = remote.load()
+
+    if name not in remotes:
+        utils.console.abort_with_message("Remote host doesn't exist.")
+
+    r = remotes[name]
+
+    if ensure_known_host(r):
+        run_ssh_key_upload(r, password)
+    else:
+        utils.console.warn(
+            "The SSH key has NOT been uploaded, because the host could not be verified. Ensure that the host can be verified and rerun this command to complete the initialization."
+        )

@@ -4,7 +4,7 @@ from rich.console import Console
 
 from kistn import constants, prompts, utils
 from kistn.models import (BorgmaticCheck, BorgmaticConfig, BorgmaticRepository,
-                          RemoteConfig)
+                          Remote)
 
 console = Console()
 
@@ -13,7 +13,7 @@ class SetupWizard:
     def __init__(self):
         self.profile_name: str = "pandoras-box"
         self.remind_frequency: int | None = None
-        self.remote_config: RemoteConfig | None = None
+        self.remote_config: Remote | None = None
         self.borgmatic_config: BorgmaticConfig | None = None
         self.gen_ssh_key: bool = False
         self.upload_ssh_key: bool = False
@@ -44,7 +44,7 @@ class SetupWizard:
         port = prompts.config.prompt_remote_port()
         username = prompts.config.prompt_remote_username()
         remote_name = prompts.config.prompt_remote_name()
-        self.remote_config = RemoteConfig(
+        self.remote_config = Remote(
             hostname=hostname,
             port=port,
             username=username,

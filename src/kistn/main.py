@@ -3,7 +3,8 @@ from pathlib import Path
 import typer
 from rich.console import Console
 
-from kistn import commands
+from kistn import commands, consts, settings
+from kistn.settings import Settings
 
 app = typer.Typer(
     help="📦 **kistn**: A CLI manager for Borgmatic and Hetzner Storage Box backups.",
@@ -15,7 +16,14 @@ app.add_typer(commands.remote.app, name="remote")
 console = Console()
 
 
+def setup():
+    if not consts.CONFIG_FILE.exists():
+        new = Settings.from_default()
+        settings.save(new)
+
+
 def main():
+    setup()
     app()
 
 

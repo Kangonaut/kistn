@@ -6,6 +6,7 @@ RUN apt-get update && apt-get install -y \
     borgmatic \
     openssh-client \
     wget \
+    sshpass \
     && rm -rf /var/lib/apt/lists/*
 
 # create virtual environment outside /app so volume mounts don't overwrite it

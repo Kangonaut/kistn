@@ -5,7 +5,7 @@ import questionary
 from rich.panel import Panel
 
 from kistn import constants, utils
-from kistn.models import BackupConfig, RemoteConfig
+from kistn.models import BackupConfig, Remote
 
 
 def prompt_key_generation(key_path: Path) -> bool:
