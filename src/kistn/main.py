@@ -20,8 +20,6 @@ app = typer.Typer(
 app.add_typer(commands.profile.app, name="profile")
 app.add_typer(commands.remote.app, name="remote")
 
-console = Console()
-
 
 def setup():
     if not consts.CONFIG_FILE.exists():
@@ -31,7 +29,7 @@ def setup():
 
 def print_profiles_status(profiles: list[Profile]):
     if not profiles:
-        console.print(
+        utils.console.print(
             "No profiles found. Create a profile using [cyan]`kistn profile create`[/cyan]."
         )
         return
@@ -50,7 +48,7 @@ def print_profiles_status(profiles: list[Profile]):
             p.format_due_date(),
         )
 
-    console.print(table)
+    utils.console.print(table)
 
 
 @app.command("run")
@@ -74,7 +72,7 @@ def backup(
         )
 
     try:
-        with console.status("Checking remote hosts..."):
+        with utils.console.status("Checking remote hosts..."):
             utils.borgmatic.check_repositories(config_file)
             utils.console.success("Remote hosts are reachable and ready for backup.")
         utils.borgmatic.create_backup(config_file)

@@ -1,3 +1,5 @@
+import enum
+from functools import total_ordering
 from pathlib import Path
 
 from pydantic import BaseModel, Field
@@ -10,12 +12,39 @@ from kistn.borgmatic import BorgmaticRepository
 console = Console()
 
 
+@total_ordering
+class RemoteState(str, enum.Enum):
+    CREATED = "created"
+    READY = "ready"
+
+    def get_console_color(self) -> str:
+        match self:
+            case RemoteState.CREATED:
+                return "bold white"
+            case RemoteState.READY:
+                return "bold green"
+
+    def __repr__(self) -> str:
+        color = self.get_console_color()
+        return f"[{color}]{self.name}[/{color}]"
+
+    @property
+    def rank(self) -> int:
+        return list(self.__class__).index(self)
+
+    def __lt__(self, other):
+        if isinstance(other, RemoteState):
+            return self.rank < other.rank
+        return NotImplemented
+
+
 class Remote(BaseModel):
     name: str
     description: str
     hostname: str
     port: int = Field(default=23, ge=1, le=65535)
     username: str
+    state: RemoteState = Field(default=RemoteState.CREATED)
 
     @property
     def config_file(self) -> Path:
@@ -104,6 +133,7 @@ def print_remotes(remotes: list[Remote]):
     table = Table(box=None)
 
     table.add_column("Name", style="bold green")
+    table.add_column("State", style="white")
     table.add_column("Hostname", style="white")
     table.add_column("Port", style="white")
     table.add_column("Username", style="white")
@@ -112,6 +142,7 @@ def print_remotes(remotes: list[Remote]):
     for remote in remotes:
         table.add_row(
             remote.name,
+            remote.state,
             f"[link=https://{remote.hostname}]{remote.hostname}[/link]",
             str(remote.port),
             remote.username,
@@ -119,3 +150,25 @@ def print_remotes(remotes: list[Remote]):
         )
 
     console.print(table)
+
+
+def get_remote_by_name_ensured(
+    name: str,
+    remotes: dict[str, Remote] | None = None,
+) -> Remote:
+    return get_remote_by_name(name, remotes, check=True)  # type: ignore
+
+
+def get_remote_by_name(
+    name: str,
+    remotes: dict[str, Remote] | None = None,
+    check=True,
+) -> Remote | None:
+    if not remotes:
+        remotes = load()
+    if name not in remotes:
+        if check:
+            utils.console.abort_with_message("Remote host doesn't exist.")
+        else:
+            return None
+    return remotes[name]

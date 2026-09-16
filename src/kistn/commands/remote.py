@@ -6,12 +6,10 @@ from rich.panel import Panel
 from typer.params import Argument
 
 from kistn import consts, remote, utils, validators
-from kistn.remote import Remote
+from kistn.remote import Remote, RemoteState
 from kistn.utils.console import abort_with_error
 
 app = typer.Typer()
-
-console = Console()
 
 
 def create_ssh_key(r: Remote):
@@ -32,7 +30,7 @@ def create_ssh_config(r: Remote):
 
 def run_ssh_key_upload(r: Remote, password: str):
     try:
-        with console.status("Uploading SSH key...", spinner="dots"):
+        with utils.console.status("Uploading SSH key...", spinner="dots"):
             r.upload_ssh_key(password)
     except Exception as ex:
         abort_with_error(f"SSH key upload failed. {ex}")
@@ -41,7 +39,7 @@ def run_ssh_key_upload(r: Remote, password: str):
 
 
 def ensure_known_host(r: Remote) -> bool:
-    with console.status("Checking if the remote host is known..."):
+    with utils.console.status("Checking if the remote host is known..."):
         is_known = utils.ssh.is_host_in_known_hosts(r.hostname)
 
     # if the host is known, done!
@@ -51,7 +49,7 @@ def ensure_known_host(r: Remote) -> bool:
 
     utils.console.info("Remote host is not yet known.")
 
-    with console.status("Checking remote host's fingerprint..."):
+    with utils.console.status("Checking remote host's fingerprint..."):
         key_line = utils.ssh.verify_host_key(r.hostname)
 
     # if the host's fingerprint cannot be verified, done! (with warning message)
@@ -63,41 +61,41 @@ def ensure_known_host(r: Remote) -> bool:
 
     utils.console.success("Verified host's fingerprint!")
 
-    with console.status("Adding host to known hosts..."):
+    with utils.console.status("Adding host to known hosts..."):
         utils.ssh.add_to_known_hosts(key_line)
 
     utils.console.success("Added host to known hosts.")
     return True
 
 
-@app.command("add")
-@app.command()
-def create(
-    name: str | None = typer.Option(
-        default=None,
-        callback=validators.validate_typer_param(validators.validate_name, "name"),
-    ),
-    description: str | None = typer.Option(default=None),
-    hostname: str | None = typer.Option(
-        default=None,
-        callback=validators.validate_typer_param(
-            validators.validate_hostname, "hostname"
-        ),
-    ),
-    port: int | None = typer.Option(
-        default=None,
-        callback=validators.validate_typer_param(validators.validate_port, "port"),
-    ),
-    username: str | None = typer.Option(
-        default=None,
-        callback=validators.validate_typer_param(
-            validators.validate_username, "username"
-        ),
-    ),
-    skip_ssh_key_upload: bool = typer.Option(
-        default=False,
-    ),
+def run_init(
+    r: Remote,
+    password: str | None = None,
 ):
+    try:
+        if not password:
+            password = questionary.password("Password:").unsafe_ask()
+    except KeyboardInterrupt:
+        utils.console.abort()
+
+    if not ensure_known_host(r):
+        utils.console.abort_with_error(
+            "The SSH key has NOT been uploaded, because the host could not be verified. Ensure that the host can be verified and rerun this command to complete the initialization."
+        )
+
+    run_ssh_key_upload(r, password)  # type: ignore
+
+    r.state = RemoteState.READY
+    r.save()
+
+
+def run_create(
+    name: str | None = None,
+    description: str | None = None,
+    hostname: str | None = None,
+    port: int | None = None,
+    username: str | None = None,
+) -> Remote:
     remotes = remote.load()
     remote_names = set(remotes.keys())
 
@@ -168,26 +166,90 @@ def create(
     r.save()
     utils.console.success(f"Remote host added! Total count: {len(remotes)}")
 
-    console.print(
-        f"Please run the following command to initialize the remote host:",
-    )
-    utils.console.print_command(f"kistn remote init {r.name}")
+    return r
+
+
+@app.command()
+def wizard(
+    name: str = Argument(
+        callback=validators.validate_typer_param(validators.validate_name, "name"),
+    ),
+):
+    r = remote.get_remote_by_name(name)
+
+    # STEP 1: create
+    if r is None:
+        utils.console.print_step_header(
+            1,
+            "CREATE REMOTE HOST",
+            "Define connection details like the hostname and username, and generate the necessary SSH keys.",
+        )
+        r = run_create(name)
+    else:
+        utils.console.info("Skipping already completed steps.")
+
+        if r.state == RemoteState.READY:
+            utils.console.info("Nothing left to do. Profile is ready to use.")
+
+    # STEP 2: initialize
+    if r.state < RemoteState.READY:
+        utils.console.print_step_header(
+            2,
+            "INITIALIZE REMOTE HOST",
+            "Verify the remote host's identity and upload your SSH key to enable secure, passwordless access.",
+        )
+        run_init(r)
+
+
+@app.command()
+def create(
+    name: str | None = typer.Option(
+        default=None,
+        callback=validators.validate_typer_param(validators.validate_name, "name"),
+    ),
+    description: str | None = typer.Option(default=None),
+    hostname: str | None = typer.Option(
+        default=None,
+        callback=validators.validate_typer_param(
+            validators.validate_hostname, "hostname"
+        ),
+    ),
+    port: int | None = typer.Option(
+        default=None,
+        callback=validators.validate_typer_param(validators.validate_port, "port"),
+    ),
+    username: str | None = typer.Option(
+        default=None,
+        callback=validators.validate_typer_param(
+            validators.validate_username, "username"
+        ),
+    ),
+):
+    run_create(name, description, hostname, port, username)
+
+
+@app.command()
+def init(
+    name: str = Argument(),
+    password: str | None = typer.Argument(None),
+):
+
+    r = remote.get_remote_by_name_ensured(name)
+    run_init(r, password)
 
 
 @app.command("list")
-@app.command()
 def query():
     remotes = remote.load()
     remotes_list = list(remotes.values())
     remotes_list.sort(key=lambda r: r.name)
 
     remote.print_remotes(remotes_list)
-    console.print(f"\nTotal: {len(remotes)}")
+    utils.console.print(f"\nTotal: {len(remotes)}")
 
 
-@app.command("delete")
 @app.command()
-def remove(
+def delete(
     name: str = Argument(),
 ):
     remotes = remote.load()
@@ -198,28 +260,3 @@ def remove(
     r = remotes[name]
     r.delete()
     utils.console.success(f"Remote host removed! Total count: {len(remotes)}")
-
-
-@app.command()
-def init(
-    name: str = Argument(),
-    password: str | None = typer.Argument(None),
-):
-
-    remotes = remote.load()
-    if name not in remotes:
-        utils.console.abort_with_message("Remote host doesn't exist.")
-    r = remotes[name]
-
-    try:
-        if not password:
-            password = questionary.password("Password:").unsafe_ask()
-    except KeyboardInterrupt:
-        utils.console.abort()
-
-    if ensure_known_host(r):
-        run_ssh_key_upload(r, password)  # type: ignore
-    else:
-        utils.console.warn(
-            "The SSH key has NOT been uploaded, because the host could not be verified. Ensure that the host can be verified and rerun this command to complete the initialization."
-        )

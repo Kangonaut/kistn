@@ -332,7 +332,7 @@ def wizard(
     p = profile.get_profile_by_name(name)
 
     # STEP 1: create
-    if p is None or True:
+    if p is None:
         utils.console.print_step_header(
             1,
             "CREATE BACKUP PROFILE",
@@ -468,9 +468,6 @@ def key(
     p = profile.get_profile_by_name_ensured(name)
     ensure_state(p, ProfileState.INITIALIZED)
     run_key(p)
-
-    p.state = ProfileState.READY
-    p.save()
 
 
 @app.command("list")
