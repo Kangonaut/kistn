@@ -110,11 +110,13 @@ class Remote(BaseModel):
         )
 
 
-def load() -> dict[str, Remote]:
+def load(state: None | RemoteState = None) -> dict[str, Remote]:
     dir = consts.REMOTES_CACHE_DIR
     if not dir.exists():
         return dict()
     remotes = [Remote.load(f) for f in dir.iterdir()]
+    if state:
+        remotes = filter(lambda r: r.state == state, remotes)
     return {r.name: r for r in remotes}
 
 

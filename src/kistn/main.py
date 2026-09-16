@@ -8,7 +8,7 @@ from typer.params import Argument
 
 from kistn import commands, consts, profile, settings, utils
 from kistn.borgmatic import BorgmaticConfig
-from kistn.profile import Profile
+from kistn.profile import Profile, ProfileState
 from kistn.settings import Settings
 from kistn.utils.network import is_host_reachable
 from kistn.utils.system import send_notification
@@ -56,26 +56,18 @@ def print_profiles_status(profiles: list[Profile]):
 def backup(
     name: str = Argument(),
 ):
-    profiles = profile.load()
+    p = profile.get_profile_by_name_ensured(name)
 
-    # check if given profile exists
-    if name not in profiles:
-        utils.console.abort_with_error("Profile doesn't exist.")
-    p = profiles[name]
-
-    config = BorgmaticConfig.load(p.name)
-    config_file = config.get_path(p.name)
-    if not config_file.exists():
-        utils.console.abort_with_error_and_command(
-            "The backup profile is not yet configured. Please run the following command first:",
-            f"kistn profile setup {p.name}",
+    if p.state != ProfileState.READY:
+        utils.console.abort_with_error(
+            "The profile must be [cyan]READY[/cyan] in order to create a backup."
         )
 
     try:
         with utils.console.status("Checking remote hosts..."):
-            utils.borgmatic.check_repositories(config_file)
+            utils.borgmatic.check_repositories(p.borgmatic_config_file)
             utils.console.success("Remote hosts are reachable and ready for backup.")
-        utils.borgmatic.create_backup(config_file)
+        utils.borgmatic.create_backup(p.borgmatic_config_file)
     except RuntimeError as e:
         utils.system.send_notification(
             title=f"{p.name} - Backup Failed",

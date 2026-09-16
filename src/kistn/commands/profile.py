@@ -12,7 +12,7 @@ from kistn import consts, profile, remote, utils, validators
 from kistn.borgmatic import (BorgmaticCheck, BorgmaticConfig,
                              BorgmaticRepository)
 from kistn.profile import Profile, ProfileState
-from kistn.remote import Remote
+from kistn.remote import Remote, RemoteState
 
 app = typer.Typer()
 
@@ -164,15 +164,15 @@ def run_configure(
     keep_weekly: int | None = None,
     keep_monthly: int | None = None,
 ):
-    remotes = remote.load()
+    remotes = remote.load(state=RemoteState.READY)
     remote_names = sorted(list(remotes.keys()))
 
     # check if at least one remote is configured
     if len(remotes) == 0:
         utils.console.abort_with_error(
-            "You need a remote host to store your backup at. Please set one up first using the following command:\n"
+            "You need a ready to use remote host to store your backup at. Please set one up first using the following command:\n"
         )
-        utils.console.print_command("kistn remote create")
+        utils.console.print_command("kistn remote wizard")
 
     try:
         # remote hosts
