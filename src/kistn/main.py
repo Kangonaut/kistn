@@ -2,9 +2,13 @@ from pathlib import Path
 
 import typer
 from rich.console import Console
+from typer.params import Argument
 
-from kistn import commands, consts, settings
+from kistn import commands, consts, profile, settings, utils
+from kistn.borgmatic import BorgmaticConfig
 from kistn.settings import Settings
+from kistn.utils.network import is_host_reachable
+from kistn.utils.system import send_notification
 
 app = typer.Typer(
     help="📦 **kistn**: A CLI manager for Borgmatic and Hetzner Storage Box backups.",
@@ -20,6 +24,49 @@ def setup():
     if not consts.CONFIG_FILE.exists():
         new = Settings.from_default()
         settings.save(new)
+
+
+@app.command()
+def run(
+    name: str = Argument(),
+):
+    profiles = profile.load()
+
+    # check if given profile exists
+    if name not in profiles:
+        utils.console.abort_with_error("Profile doesn't exist.")
+    p = profiles[name]
+
+    config = BorgmaticConfig.load(p.name)
+    config_file = config.get_path(p.name)
+    if not config_file.exists():
+        utils.console.abort_with_error_and_command(
+            "The backup profile is not yet configured. Please run the following command first:",
+            f"kistn profile setup {p.name}",
+        )
+
+    for repo in config.repositories:
+        # is_host_reachable(repo.path)
+        pass
+
+    try:
+        utils.borgmatic.create_backup(config_file)
+    except RuntimeError as e:
+        utils.system.send_notification(
+            title=f"{p.name} - Backup Failed",
+            message=str(e),
+            urgency="critical",
+            icon="dialog-error",
+        )
+        raise e
+
+    send_notification(
+        title=f"{p.name} - Backup Successful",
+        message="Your Borgmatic backup completed successfully.",
+        urgency="normal",
+        icon="emblem-default",
+    )
+    utils.console.success("Backup completed!")
 
 
 def main():
