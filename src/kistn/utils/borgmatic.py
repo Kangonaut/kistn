@@ -61,7 +61,9 @@ def check_repositories(config_file: Path):
         )
     except subprocess.CalledProcessError as e:
         error_msg = e.stderr.strip() if e.stderr else "Unknown error."
-        raise RuntimeError(f"Failed to export key. {e.returncode}: {error_msg}") from e
+        raise RuntimeError(
+            f"Repositories are not ready. Return code: {e.returncode}"
+        ) from e
 
 
 def create_backup(config_file: Path):
@@ -78,9 +80,6 @@ def create_backup(config_file: Path):
                 "--progress",
             ],
             check=True,
-            text=True,
-            capture_output=True,
         )
     except subprocess.CalledProcessError as e:
-        error_msg = e.stderr.strip() if e.stderr else "Unknown error."
-        raise RuntimeError(f"Failed to export key. {e.returncode}: {error_msg}") from e
+        raise RuntimeError(f"Backup failed with return code {e.returncode}.") from e
