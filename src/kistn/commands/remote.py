@@ -171,7 +171,7 @@ def create(
     console.print(
         f"Please run the following command to initialize the remote host:",
     )
-    utils.console.print_command(f"kistn remote init {r.name} <HOST-PASSWORD>")
+    utils.console.print_command(f"kistn remote init {r.name}")
 
 
 @app.command("list")
@@ -203,17 +203,22 @@ def remove(
 @app.command()
 def init(
     name: str = Argument(),
-    password: str = typer.Argument(),
+    password: str | None = typer.Argument(None),
 ):
-    remotes = remote.load()
 
+    remotes = remote.load()
     if name not in remotes:
         utils.console.abort_with_message("Remote host doesn't exist.")
-
     r = remotes[name]
 
+    try:
+        if not password:
+            password = questionary.password("Password:").unsafe_ask()
+    except KeyboardInterrupt:
+        utils.console.abort()
+
     if ensure_known_host(r):
-        run_ssh_key_upload(r, password)
+        run_ssh_key_upload(r, password)  # type: ignore
     else:
         utils.console.warn(
             "The SSH key has NOT been uploaded, because the host could not be verified. Ensure that the host can be verified and rerun this command to complete the initialization."

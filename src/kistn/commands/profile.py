@@ -330,7 +330,7 @@ def setup(
     utils.console.success(
         "Setup complete! Run the following command to export the paper key:"
     )
-    utils.console.print_command(f"kistn profile key {p.name}")
+    utils.console.print_command(f"kistn profile init {p.name}")
 
 
 @app.command()
