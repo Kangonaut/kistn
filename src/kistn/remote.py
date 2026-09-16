@@ -18,6 +18,18 @@ class Remote(BaseModel):
     username: str
 
     @property
+    def config_file(self) -> Path:
+        return consts.REMOTES_CACHE_DIR / self.name
+
+    @classmethod
+    def load(cls, path: Path):
+        return utils.io.load_pydantic_from_yaml(Remote, path)
+
+    def save(self):
+        self.config_file.parent.mkdir(parents=True, exist_ok=True)
+        utils.io.save_pydantic_to_yaml(self, self.config_file)
+
+    @property
     def ssh_name(self) -> str:
         return f"kistn.{self.name}"
 
@@ -53,10 +65,14 @@ class Remote(BaseModel):
     def upload_ssh_key(self, passphrase: str):
         utils.ssh.upload_key(self.ssh_key_file, self.ssh_name, passphrase)
 
+    def delete(self):
+        self.remove_files()
+
     def remove_files(self):
         self.ssh_key_file.unlink(missing_ok=True)
         self.public_ssh_key_file.unlink(missing_ok=True)
         self.ssh_config_file.unlink(missing_ok=True)
+        self.config_file.unlink(missing_ok=True)
 
     def to_borgmatic_repo(self) -> BorgmaticRepository:
         return BorgmaticRepository(
@@ -65,16 +81,17 @@ class Remote(BaseModel):
         )
 
 
-def load(path: Path = consts.REMOTES_CACHE_FILE) -> dict[str, Remote]:
-    if not path.exists():
+def load() -> dict[str, Remote]:
+    dir = consts.REMOTES_CACHE_DIR
+    if not dir.exists():
         return dict()
-    remotes = utils.io.load_pydantic_list_from_yaml(Remote, path)
+    remotes = [Remote.load(f) for f in dir.iterdir()]
     return {r.name: r for r in remotes}
 
 
-def save(remotes: dict[str, Remote], path: Path = consts.REMOTES_CACHE_FILE):
-    path.parent.mkdir(parents=True, exist_ok=True)
-    utils.io.save_pydantic_list_to_yaml(list(remotes.values()), Remote, path)
+def save(remotes: dict[str, Remote]):
+    for r in remotes.values():
+        r.save()
 
 
 def print_remotes(remotes: list[Remote]):

@@ -165,8 +165,7 @@ def create(
     create_ssh_config(r)
 
     # add to remotes
-    remotes[r.name] = r
-    remote.save(remotes)
+    r.save()
     utils.console.success(f"Remote host added! Total count: {len(remotes)}")
 
     console.print(
@@ -196,10 +195,8 @@ def remove(
     if name not in remotes:
         utils.console.abort_with_message("Remote host doesn't exist.")
 
-    remotes[name].remove_files()  # type: ignore
-    del remotes[name]  # type: ignore
-
-    remote.save(remotes)
+    r = remotes[name]
+    r.delete()
     utils.console.success(f"Remote host removed! Total count: {len(remotes)}")
 
 

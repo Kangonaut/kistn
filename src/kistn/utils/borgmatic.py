@@ -48,7 +48,7 @@ def init_repo(config_file: Path) -> bool:
 
 def check_repositories(config_file: Path):
     try:
-        result = subprocess.run(
+        subprocess.run(
             [
                 "borgmatic",
                 "repo-info",
@@ -62,7 +62,7 @@ def check_repositories(config_file: Path):
     except subprocess.CalledProcessError as e:
         error_msg = e.stderr.strip() if e.stderr else "Unknown error."
         raise RuntimeError(
-            f"Repositories are not ready. Return code: {e.returncode}"
+            f"Repositories are not ready. Return code: {e.returncode}. Message: {error_msg}"
         ) from e
 
 

@@ -9,7 +9,9 @@ CONFIG_DIR = dirs.user_config_path
 CONFIG_FILE = CONFIG_DIR / "config.yaml"
 
 CACHE_DIR = dirs.user_cache_path
+PROFILES_CACHE_DIR = CACHE_DIR / "profiles"
 PROFILES_CACHE_FILE = CACHE_DIR / "profiles.yaml"
+REMOTES_CACHE_DIR = CACHE_DIR / "remotes"
 REMOTES_CACHE_FILE = CACHE_DIR / "remotes.yaml"
 
 SSH_DIR = Path.home() / ".ssh"

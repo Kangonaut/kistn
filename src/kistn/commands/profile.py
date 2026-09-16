@@ -138,9 +138,7 @@ def create(
         frequency=frequency,  # type: ignore
         automatic=automatic,  # type: ignore
     )
-
-    profiles[p.name] = p
-    profile.save(profiles)
+    p.save()
 
     utils.console.success(f"Profile added! Total count: {len(profiles)}")
 
@@ -165,9 +163,7 @@ def remove(
     if name not in profiles:
         utils.console.abort_with_error("Profile doesn't exist.")
 
-    del profiles[name]  # type: ignore
-
-    profile.save(profiles)
+    p.delete()
     utils.console.success(f"Profile removed! Total count: {len(profiles)}")
 
 
