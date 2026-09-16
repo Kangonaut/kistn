@@ -47,8 +47,8 @@ class Remote(BaseModel):
         )
         self.ssh_config_file.write_text(content)
 
-    def create_ssh_key(self, passphrase: str):
-        utils.ssh.gen_key(self.ssh_key_file, passphrase)
+    def create_ssh_key(self):
+        utils.ssh.gen_key(self.ssh_key_file)
 
     def upload_ssh_key(self, passphrase: str):
         utils.ssh.upload_key(self.ssh_key_file, self.ssh_name, passphrase)

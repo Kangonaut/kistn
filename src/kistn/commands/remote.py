@@ -14,8 +14,8 @@ app = typer.Typer()
 console = Console()
 
 
-def create_ssh_key(r: Remote, passphrase: str):
-    r.create_ssh_key(passphrase)
+def create_ssh_key(r: Remote):
+    r.create_ssh_key()
     path = r.ssh_key_file.resolve()
     utils.console.success(
         f"SSH key file created: [cyan][link={path.as_uri()}]{path}[/link][/cyan]"
@@ -94,9 +94,6 @@ def create(
             validators.validate_username, "username"
         ),
     ),
-    passphrase: str | None = typer.Option(
-        default=None,
-    ),
     skip_ssh_key_upload: bool = typer.Option(
         default=False,
     ),
@@ -147,14 +144,6 @@ def create(
                 default="uXXXXXX",
                 validate=validators.validate_username,
             ).unsafe_ask()
-
-        utils.console.hint(
-            "The passphrase is used to secure the SSH key file. If you enter a passphrase, you will be asked for that passphrase every time you run the backup. This is more secure, but also more tedious. If you don't want a passphrase, simply press enter."
-        )
-        if not passphrase:
-            passphrase = questionary.text(
-                message="Passphrase:",
-            ).unsafe_ask()
     except KeyboardInterrupt:
         utils.console.abort()
 
@@ -170,7 +159,7 @@ def create(
     utils.ssh.init()
 
     # SSH key file
-    create_ssh_key(r, passphrase)  # type: ignore
+    create_ssh_key(r)  # type: ignore
 
     # SSH config file
     create_ssh_config(r)

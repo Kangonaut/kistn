@@ -9,9 +9,9 @@ from kistn import consts, settings
 from kistn.commands.remote import create
 
 
-def gen_key(path: Path, passphrase: str) -> None:
+def gen_key(path: Path) -> None:
     subprocess.run(
-        ["ssh-keygen", "-t", consts.SSH_KEY_TYPE, "-N", passphrase, "-f", str(path)],
+        ["ssh-keygen", "-t", consts.SSH_KEY_TYPE, "-N", "", "-f", str(path)],
         check=True,
         stdout=subprocess.DEVNULL,
     )
