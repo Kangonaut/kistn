@@ -133,6 +133,9 @@ def run_create(
         if not automatic:
             utils.console.hint("Should the backup be performed automatically?")
             utils.console.hint("NOTE: This setting is not recommended for laptops.")
+            utils.console.important(
+                "Unfortunately, this feature currently does nothing. I hope i will implement it soon. Until then: Sorry."
+            )
             automatic = questionary.confirm(
                 message="Automatic Backup?",
                 default=False,

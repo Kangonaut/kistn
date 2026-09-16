@@ -54,16 +54,25 @@ class Profile(BaseModel):
     state: ProfileState = Field(default=ProfileState.CREATED)
 
     @property
+    def due_in_days(self) -> int:
+        if not self.last_backup:
+            return 0
+        delta = datetime.now(timezone.utc) - self.last_backup
+        return self.frequency - delta.days
+
+    @property
+    def days_since_backup(self) -> int | None:
+        if not self.last_backup:
+            return None
+        delta = datetime.now(timezone.utc) - self.last_backup
+        return delta.days
+
+    @property
     def borgmatic_config_file(self) -> Path:
         return BorgmaticConfig.get_path(self.name)
 
     def format_due_date(self) -> str:
-        if not self.last_backup:
-            return "[bold green]today[/bold green]"
-
-        delta = datetime.now(timezone.utc) - self.last_backup
-        days = self.frequency - delta.days
-
+        days = self.due_in_days
         if days == 0:
             return "[bold green]today[/bold green]"
         if days == 1:
@@ -76,12 +85,9 @@ class Profile(BaseModel):
             return f"[bold red]{days} days ago[/bold red]"
 
     def format_days_since_backup(self) -> str:
-        if not self.last_backup:
+        days = self.days_since_backup
+        if days is None:
             return "never"
-
-        delta = datetime.now(timezone.utc) - self.last_backup
-        days = delta.days
-
         if days == 0:
             return "today"
         if days == 1:
@@ -119,6 +125,11 @@ def load() -> dict[str, Profile]:
 def save(profiles: dict[str, Profile]):
     for p in profiles.values():
         p.save()
+
+
+def get_due() -> list[Profile]:
+    profiles = load()
+    return list(filter(lambda p: p.due_in_days <= 0, profiles.values()))
 
 
 def print_profiles(profiles: list[Profile]):

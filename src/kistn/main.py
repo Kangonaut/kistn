@@ -51,9 +51,41 @@ def print_profiles_status(profiles: list[Profile]):
     utils.console.print(table)
 
 
-@app.command("run")
 @app.command()
-def backup(
+def doctor():
+    with utils.console.status("Checking system dependencies..."):
+        all_good = all(
+            [
+                utils.system.check_system_dependency(command="borg"),
+                utils.system.check_system_dependency(
+                    command="borgmatic", min_version="1.8.0"
+                ),
+                utils.system.check_system_dependency(command="ssh"),
+                utils.system.check_system_dependency(command="sshpass"),
+                utils.system.check_system_dependency(command="ssh-keygen"),
+                utils.system.check_system_dependency(command="ssh-copy-id"),
+            ]
+        )
+
+    if all_good:
+        utils.console.success("All system dependencies are installed and up to date!")
+    else:
+        utils.console.abort_with_error(
+            "Please install or upgrade the missing dependencies."
+        )
+
+
+@app.command()
+def status():
+    profiles = profile.load()
+    profile_list = list(profiles.values())
+    profile_list.sort(key=lambda p: p.name)
+
+    print_profiles_status(profile_list)
+
+
+@app.command()
+def run(
     name: str = Argument(),
 ):
     p = profile.get_profile_by_name_ensured(name)
@@ -89,39 +121,6 @@ def backup(
     p.save()
 
 
-@app.command()
-def doctor():
-    with utils.console.status("Checking system dependencies..."):
-        all_good = all(
-            [
-                utils.system.check_system_dependency(command="borg"),
-                utils.system.check_system_dependency(
-                    command="borgmatic", min_version="1.8.0"
-                ),
-                utils.system.check_system_dependency(command="ssh"),
-                utils.system.check_system_dependency(command="sshpass"),
-                utils.system.check_system_dependency(command="ssh-keygen"),
-                utils.system.check_system_dependency(command="ssh-copy-id"),
-            ]
-        )
-
-    if all_good:
-        utils.console.success("All system dependencies are installed and up to date!")
-    else:
-        utils.console.abort_with_error(
-            "Please install or upgrade the missing dependencies."
-        )
-
-
-@app.command()
-def status():
-    profiles = profile.load()
-    profile_list = list(profiles.values())
-    profile_list.sort(key=lambda p: p.name)
-
-    print_profiles_status(profile_list)
-
-
 def main():
     setup()
     app()
@@ -130,33 +129,36 @@ def main():
 if __name__ == "__main__":
     main()
 
-# @app.command(name="check-shell")
-# def check_shell(
-#     threshold: int = 7,
-#     desktop_notify: bool = typer.Option(True, help="Send a desktop popup if overdue"),
-# ):
-#     """Fast, silent check for .zshrc integration. Prints banner and optional popup if overdue."""
-#     profiles = get_backup_profiles()
-#     for profile in profiles:
-#         days = get_days_since_last_backup(profile)
-#         if days is not None and days > threshold:
-#             msg = f"{profile}: Your last backup was {days} days ago. Run 'kistn run' to sync."
-#
-#             # Terminal output
-#             print(f"[bold yellow]⚠️  Backup Warning:[/bold yellow] {msg}")
-#
-#             # Desktop notification
-#             if desktop_notify:
-#                 send_notification(
-#                     title="Backup Overdue",
-#                     message=msg,
-#                     urgency="critical",
-#                     icon="dialog-warning",
-#                 )
-#
-#
-#
-#
+
+@app.command(name="check-overdue")
+def check_overdue(
+    notification: bool = typer.Option(
+        False,
+        help="Send a desktop popup if overdue.",
+        is_flag=True,
+    ),
+    quiet: bool = typer.Option(
+        False,
+        is_flag=True,
+    ),
+):
+    """Fast, silent check for .zshrc or .bashrc integration. Prints banner and optional popup if overdue."""
+    due_profiles = profile.get_due()
+    for p in due_profiles:
+        if not quiet:
+            utils.console.warn(
+                f"{p.name}: Your last backup was {p.days_since_backup} days ago. Run [cyan]`kistn run {p.name}`[/cyan] to start the backup."
+            )
+
+        if notification:
+            send_notification(
+                title=f"{p.name} - Backup Overdue",
+                message=f"Your last backup was {p.days_since_backup} days ago. Run `kistn run {p.name}` to start the backup.",
+                urgency="critical",
+                icon="dialog-warning",
+            )
+
+
 # @app.command(name="test-restore")
 # def test_restore():
 #     """Extracts latest archive metadata or canary files to test restore capability."""
