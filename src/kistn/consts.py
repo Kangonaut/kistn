@@ -28,7 +28,7 @@ SSH_DEFAULT_TRUSTED_FINGERPRINTS = [
     "oDHZqKXnoMtgvPBjjC57pcuFez28roaEuFcfwyg8O5c",
 ]
 
-BORGMATIC_CONFIG_DIR = CONFIG_DIR / "borgmatic.d"
+BORGMATIC_CONFIG_DIR = CONFIG_DIR.parent / "borgmatic.d"
 BORGMATIC_EXCLUDE_PATTERNS = [
     "**/node_modules",
     "**/__pycache__",

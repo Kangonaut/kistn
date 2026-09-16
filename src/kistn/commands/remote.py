@@ -57,7 +57,7 @@ def ensure_known_host(r: Remote) -> bool:
     # if the host's fingerprint cannot be verified, done! (with warning message)
     if not key_line:
         utils.console.warn(
-            f"The remote host's fingerprint could not be verified. If the remote host is NOT a Hetzner storage box, this is to to be expected. Either add the fingerprint to the [cyan]`trusted_ssh_fingerprints`[/cyan] in the config file or connect to the host via [cyan]`ssh`[/cyan] to add the host's key to the known hosts."
+            f"The remote host's fingerprint could not be verified. If the remote host is NOT a Hetzner storage box, this is to to be expected. Either add the fingerprint to the [cyan]`trusted_ssh_fingerprints`[/cyan] in the config file or connect to the host via [cyan]`ssh {r.ssh_name}`[/cyan] to add the host's key to the known hosts. Then re-run this command to upload the SSH key."
         )
         return False
 
@@ -181,7 +181,7 @@ def create(
     utils.console.success(f"Remote host added! Total count: {len(remotes)}")
 
     console.print(
-        f"Please run the following command to initialize the remote host:\n\n",
+        f"Please run the following command to initialize the remote host:",
     )
     utils.console.print_command(f"kistn remote init {r.name} <HOST-PASSWORD>")
 

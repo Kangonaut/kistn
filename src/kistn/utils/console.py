@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import typer
 from rich.console import Console
 from rich.panel import Panel
@@ -19,6 +21,12 @@ def success(message: str):
     console.print(f"[bold green]✔ SUCCUESS:[/bold green] {message}")
 
 
+def important(message: str):
+    console.print(
+        f"📢 [bold black on magenta] IMPORTANT: [/bold black on magenta] [bold]{message}[/bold]"
+    )
+
+
 def warn(message: str):
     console.print(f"[bold yellow]⚠ WARN:[/bold yellow] {message}")
 
@@ -29,6 +37,18 @@ def error(message: str):
 
 def abort_with_error(message: str) -> None:
     error(message)
+    raise typer.Exit(code=1)
+
+
+def abort_with_error_and_command(message: str, command: str):
+    error(message)
+    command_panel = Panel(
+        f"[bold magenta]$ {command}[/bold magenta]",
+        expand=True,
+        border_style="red",
+        padding=(0, 3),
+    )
+    console.print(command_panel)
     raise typer.Exit(code=1)
 
 
@@ -50,3 +70,7 @@ def print_command(command: str):
         padding=(0, 3),
     )
     console.print(command_panel)
+
+
+def format_path(path: Path) -> str:
+    return f"[link={path.resolve().as_uri()}][cyan]{path.resolve()}[/cyan][/link]"

@@ -330,6 +330,76 @@ def setup(
         f"The Borgmatic config has been saved: [link={path.as_uri()}][cyan]{path}[/cyan][/link]"
     )
     utils.console.success(
-        "Setup complete! Run the following command to start the first backup:"
+        "Setup complete! Run the following command to export the paper key:"
     )
-    utils.console.print_command(f"kistn profile backup {p.name}")
+    utils.console.print_command(f"kistn profile key {p.name}")
+
+
+@app.command()
+def init(
+    name: str = Argument(),
+):
+    profiles = profile.load()
+
+    # check if given profile exists
+    if name not in profiles:
+        utils.console.abort_with_error("Profile doesn't exist.")
+    p = profiles[name]
+
+    config_file = BorgmaticConfig.get_path(p.name)
+    if not config_file.exists():
+        utils.console.abort_with_error_and_command(
+            "The backup profile is not yet configured. Please run the following command first:",
+            f"kistn profile setup {p.name}",
+        )
+
+    utils.borgmatic.init_repo(config_file)
+    utils.console.success("Profile initiated!")
+
+
+@app.command()
+def key(
+    name: str = Argument(),
+):
+    profiles = profile.load()
+
+    # check if given profile exists
+    if name not in profiles:
+        utils.console.abort_with_error("Profile doesn't exist.")
+    p = profiles[name]
+
+    config_file = BorgmaticConfig.get_path(p.name)
+    if not config_file.exists():
+        utils.console.abort_with_error_and_command(
+            "The backup profile is not yet configured. Please run the following command first:",
+            f"kistn profile setup {p.name}",
+        )
+
+    paper_key = utils.borgmatic.export_paper_key(config_file)
+
+    key_file = Path.cwd() / f"kistn.{p.name}-paper-key.txt"
+    key_file.touch(mode=0o600)
+    key_file.write_text(paper_key)
+
+    utils.console.hint(
+        "Why do we need a paper key? The passphrase that you entered when setting up the backup profile isn't actually used to encrypt your backed up data. Instead a much more complex, random encryption key is generated and stored on your machine for encryption. The passphrase is only used to unlock that key. The problem is that when your machine is lost, the hard-drive is wiped, etc. you cannot access that key anymore. This is where the paper key comes in. It is a human-readable representation of the actual encryption key."
+    )
+    utils.console.hint(
+        "In the case that you have connected the backup profile with multiple remote host's, there is a key for every such host. The keys are stored together in the .txt file. You can keep them together."
+    )
+    utils.console.important(
+        "The paper key allows you to decrypt your data in case you loose the data on this machine. Thus, you need to keep it safe! Please print out the key and store it at a secure location. After you have printed the key, please permanently delete the .txt file."
+    )
+
+    utils.console.success(
+        f"The paper key was saved at: {utils.console.format_path(key_file)}"
+    )
+
+    console.print(
+        Panel(
+            f"[bold white]{paper_key}[/bold white]",
+            title="[bold yellow]📄 Emergency Paper Key[/bold yellow]",
+            border_style="yellow",
+            expand=True,
+        )
+    )
