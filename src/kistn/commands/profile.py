@@ -1,3 +1,5 @@
+import subprocess
+import tempfile
 from pathlib import Path
 
 import questionary
@@ -491,3 +493,90 @@ def delete(
     p = profile.get_profile_by_name_ensured(name, profiles)
     p.delete()
     utils.console.success(f"Profile removed! Total count: {len(profiles)}")
+
+
+@app.command()
+def mount(
+    name: str = typer.Argument(..., help="The profile to mount"),
+    mount_point: Path | None = typer.Option(
+        None,
+        "--mount-point",
+        "-m",
+        help="Optional specific directory to mount to. If omitted, a temporary directory is created.",
+    ),
+):
+    """Mount the backup repository to a virtual directory to browse files."""
+    p = profile.get_profile_by_name_ensured(name)
+    ensure_state(p, ProfileState.READY)
+
+    # 1. Prepare the mount point
+    is_temp_dir = False
+    if not mount_point:
+        # Creates a secure temporary directory in the OS temp folder (e.g., /tmp/kistn-myprofile-abc123)
+        mount_point = Path(tempfile.mkdtemp(prefix=f"kistn-{p.name}-"))
+        is_temp_dir = True
+    else:
+        mount_point = mount_point.resolve()
+        mount_point.mkdir(parents=True, exist_ok=True)
+
+    config_path = p.borgmatic_config_file
+
+    try:
+        with utils.console.status(f"Mounting {p.name} to {mount_point}..."):
+            # 2. Execute borgmatic mount
+            # This mounts ALL archives in the repo as subdirectories
+            subprocess.run(
+                [
+                    "borgmatic",
+                    "--config",
+                    str(config_path),
+                    "mount",
+                    "--mount-point",
+                    str(mount_point),
+                ],
+                check=True,
+                capture_output=True,
+            )
+
+        utils.console.success(
+            f"Backup successfully mounted at: [cyan]{mount_point}[/cyan]"
+        )
+        utils.console.important(
+            "You can now open a file manager or another terminal to browse your files."
+        )
+
+        # 3. Block execution until the user is done
+        questionary.print("Press Enter to unmount and clean up...", style="bold yellow")
+        input()  # Waits for the user to press Enter
+
+    except subprocess.CalledProcessError as e:
+        utils.console.abort_with_error(
+            f"Failed to mount repository: {e.stderr.decode('utf-8').strip()}"
+        )
+    except KeyboardInterrupt:
+        # Gracefully handle Ctrl+C
+        utils.console.print("\n")
+        pass
+    finally:
+        # 4. Safely unmount and clean up, regardless of how the script exits
+        with utils.console.status("Unmounting and cleaning up..."):
+            subprocess.run(
+                [
+                    "borgmatic",
+                    "--config",
+                    str(config_path),
+                    "umount",
+                    "--mount-point",
+                    str(mount_point),
+                ],
+                check=False,  # We don't want to crash if unmounting fails
+                capture_output=True,
+            )
+
+            if is_temp_dir and mount_point.exists():
+                try:
+                    mount_point.rmdir()  # Only succeeds if the directory is empty (which it is after a successful unmount)
+                except OSError:
+                    pass
+
+        utils.console.success("Unmounted successfully.")
