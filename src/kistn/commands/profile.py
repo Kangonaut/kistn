@@ -311,7 +311,7 @@ def setup(
 
     config = BorgmaticConfig(
         source_directories=source_directories,
-        exclude_patterns=consts.BORGMATIC_EXCLUDE_PATH,
+        exclude_patterns=consts.BORGMATIC_EXCLUDE_PATTERNS,
         repositories=repositories,
         encryption_passphrase=encryption_passphrase,  # type: ignore
         compression=compression,  # type: ignore
@@ -322,6 +322,7 @@ def setup(
         checks=checks,
     )
 
+    utils.borgmatic.create_skeleton()
     config.save(p.name)
     path = config.get_path(p.name).resolve()
 

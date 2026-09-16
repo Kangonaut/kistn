@@ -41,6 +41,10 @@ class BorgmaticConfig(BaseModel):
         return utils.io.load_pydantic_from_yaml(BorgmaticConfig, cls.get_path(name))
 
     def save(self, name: str):
+        # create file with permissions
         path = consts.BORGMATIC_CONFIG_DIR / f"kistn.{name}"
+        path.touch(mode=0o600, exist_ok=True)
+
+        # serialize to yaml
         path.parent.mkdir(parents=True, exist_ok=True)
         utils.io.save_pydantic_to_yaml(self, self.get_path(name))

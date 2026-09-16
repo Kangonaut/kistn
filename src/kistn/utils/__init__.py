@@ -1,1 +1,1 @@
-from . import console, io, ssh
+from . import borgmatic, console, io, ssh
