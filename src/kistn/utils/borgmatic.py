@@ -46,6 +46,24 @@ def init_repo(config_file: Path) -> bool:
             ) from e
 
 
+def check_repositories(config_file: Path):
+    try:
+        result = subprocess.run(
+            [
+                "borgmatic",
+                "repo-info",
+                "--config",
+                str(config_file),
+            ],
+            check=True,
+            text=True,
+            capture_output=True,
+        )
+    except subprocess.CalledProcessError as e:
+        error_msg = e.stderr.strip() if e.stderr else "Unknown error."
+        raise RuntimeError(f"Failed to export key. {e.returncode}: {error_msg}") from e
+
+
 def create_backup(config_file: Path):
     try:
         result = subprocess.run(

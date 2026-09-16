@@ -26,8 +26,9 @@ def setup():
         settings.save(new)
 
 
+@app.command("run")
 @app.command()
-def run(
+def backup(
     name: str = Argument(),
 ):
     profiles = profile.load()
@@ -45,11 +46,10 @@ def run(
             f"kistn profile setup {p.name}",
         )
 
-    for repo in config.repositories:
-        # is_host_reachable(repo.path)
-        pass
-
     try:
+        with console.status("Checking remote hosts..."):
+            utils.borgmatic.check_repositories(config_file)
+            utils.console.success("Remote hosts are reachable and ready for backup.")
         utils.borgmatic.create_backup(config_file)
     except RuntimeError as e:
         utils.system.send_notification(
@@ -77,72 +77,6 @@ def main():
 if __name__ == "__main__":
     main()
 
-# @app.command()
-# def setup():
-#     wizard = SetupWizard()
-#     wizard.run()
-#
-#
-# @app.command()
-# def run():
-#     """
-#     Run a backup with connection pre-flight checks.
-#     """
-#
-#     profiles = get_backup_profiles()
-#
-#     if not profiles:
-#         print("No backup profiles found. Please run `kistn setup` first.")
-#         raise typer.Exit(code=1)
-#     else:
-#         selected_profile: str | None = questionary.select(
-#             "Select a backup profile:", choices=profiles
-#         ).ask()
-#
-#         if not selected_profile:
-#             raise typer.Exit(code=1)
-#
-#     storagebox_config = load_storagebox_config(CONFIG_DIR / selected_profile)
-#
-#     print("[blue]Checking connection to storage box ...[/blue]")
-#     if not is_host_reachable(storagebox_config.hostname, port=storagebox_config.port):
-#         console.print(
-#             "[bold red]:x: Storage Box is unreachable. Check connection/VPN.[/bold red]"
-#         )
-#         send_notification(
-#             title="Backup Cancelled",
-#             message="Storage Box host is unreachable.",
-#             urgency="critical",
-#             icon="network-offline",
-#         )
-#         raise typer.Exit(code=1)
-#
-#     with console.status(
-#         "[bold green]Running Borgmatic backup...[/bold green]", spinner="dots"
-#     ):
-#         result = subprocess.run(
-#             ["borgmatic", "create", "--verbosity", "1", "--stats", "--progress"]
-#         )
-#
-#     if result.returncode == 0:
-#         record_last_backup(selected_profile)
-#         console.print("[bold green]✔ Backup completed successfully![/bold green]")
-#         send_notification(
-#             title="Backup Successful",
-#             message="Your Borgmatic backup completed successfully.",
-#             urgency="normal",
-#             icon="emblem-default",
-#         )
-#     else:
-#         console.print("[bold red]✖ Backup failed. Check logs above.[/bold red]")
-#         send_notification(
-#             title="Backup Failed",
-#             message="Borgmatic backup encountered an error!",
-#             urgency="critical",
-#             icon="dialog-error",
-#         )
-#
-#
 # @app.command(name="check-shell")
 # def check_shell(
 #     threshold: int = 7,
