@@ -19,6 +19,7 @@ app = typer.Typer(
 )
 app.add_typer(commands.profile.app, name="profile")
 app.add_typer(commands.remote.app, name="remote")
+app.add_typer(commands.system.app, name="system")
 
 
 def setup():

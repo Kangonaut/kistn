@@ -44,3 +44,5 @@ BORGMATIC_DEFAULT_KEEP_WEEKLY = 4
 BORGMATIC_DEFAULT_KEEP_MONTHLY = 12
 
 PAPER_KEY_PATH = Path.cwd() / "borg-paper-key.txt"
+
+SYSTEMD_CONFIG_DIR = dirs.user_config_path.parent / "systemd" / "user"
