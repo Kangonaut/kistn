@@ -10,7 +10,14 @@ from kistn import consts, utils
 app = typer.Typer()
 
 
-def configure_systemd_over_service():
+def check_systemd_availability():
+    if not shutil.which("systemctl"):
+        utils.console.abort_with_error(
+            "[cyan]`systemctl`[/cyan] not found. This feature requires a Linux system running systemd."
+        )
+
+
+def install_systemd_overdue_service():
     # determine the path to the kistn executable
     # NOTE: shutil.which handles global installs, sys.argv[0] acts as a fallback for local dev
     kistn_path = shutil.which("kistn") or Path(sys.argv[0]).resolve()
@@ -73,17 +80,57 @@ WantedBy=timers.target
         utils.console.abort_with_error(f"Failed to install timer: {e}")
 
 
+def uninstall_systemd_overdue_service():
+    dir = consts.SYSTEMD_CONFIG_DIR
+    service_file = dir / "kistn-overdue.service"
+    timer_file = dir / "kistn-overdue.timer"
+
+    try:
+        with utils.console.status("Stopping and disabling timer..."):
+            # We set check=False here because if the timer is already stopped
+            # or deleted, we don't want the command to crash. We just want it gone.
+            subprocess.run(
+                ["systemctl", "--user", "stop", "kistn-overdue.timer"],
+                capture_output=True,
+            )
+            subprocess.run(
+                ["systemctl", "--user", "disable", "kistn-overdue.timer"],
+                capture_output=True,
+            )
+
+        with utils.console.status("Removing systemd unit files..."):
+            # missing_ok=True prevents crashes if the files were already deleted manually
+            service_file.unlink(missing_ok=True)
+            timer_file.unlink(missing_ok=True)
+
+        with utils.console.status("Reloading systemd daemon..."):
+            subprocess.run(
+                ["systemctl", "--user", "daemon-reload"],
+                check=True,
+                capture_output=True,
+            )
+
+    except Exception as e:
+        utils.console.abort_with_error(f"Failed to uninstall timer: {e}")
+
+
 @app.command("install-timer")
 def install_timer():
     """Install and activate a systemd timer for daily background checks."""
 
-    # verify systemd is available
-    if not shutil.which("systemctl"):
-        utils.console.abort_with_error(
-            "[cyan]`systemctl`[/cyan] not found. This feature requires a Linux system running systemd."
-        )
-
-    configure_systemd_over_service()
+    check_systemd_availability()
+    install_systemd_overdue_service()
 
     utils.console.success("Background timer installed and activated successfully!")
     utils.console.info("The overdue check will now run daily at 12:00.")
+
+
+@app.command("uninstall-timer")
+def uninstall_timer():
+    """Remove and disable the background overdue check timer."""
+
+    check_systemd_availability()
+    uninstall_systemd_overdue_service()
+
+    utils.console.success("Background timer successfully removed!")
+    utils.console.info("The overdue check will no longer run automatically.")
