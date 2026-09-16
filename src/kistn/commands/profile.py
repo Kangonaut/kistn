@@ -3,6 +3,7 @@ from pathlib import Path
 import questionary
 import typer
 from questionary import question
+from rich.align import Align
 from rich.console import Console
 from rich.panel import Panel
 from typer.params import Argument, Option
@@ -10,12 +11,28 @@ from typer.params import Argument, Option
 from kistn import consts, profile, remote, utils, validators
 from kistn.borgmatic import (BorgmaticCheck, BorgmaticConfig,
                              BorgmaticRepository)
-from kistn.profile import Profile
+from kistn.profile import Profile, ProfileState
 from kistn.remote import Remote
 
 app = typer.Typer()
 
-console = Console()
+
+def ensure_state(p: Profile, state: ProfileState):
+    if p.state >= state:
+        return
+
+    if p.state == ProfileState.CREATED:
+        utils.console.abort_with_error(
+            f"Profile needs to be configured first. Please run: [cyan]`kistn profile configure {p.name}`[/cyan]"
+        )
+    if p.state == ProfileState.CONFIGURED:
+        utils.console.abort_with_error(
+            f"Profile needs to be initialized first. Please run: [cyan]`kistn profile init {p.name}`[/cyan]"
+        )
+    if p.state == ProfileState.INITIALIZED:
+        utils.console.abort_with_error(
+            f"You need to export the encryption key first. Please run: [cyan]`kistn profile key {p.name}`[/cyan]"
+        )
 
 
 def check_path(path: Path) -> bool:
@@ -79,23 +96,12 @@ def prompt_passphrase() -> str:
         return passphrase.strip()
 
 
-@app.command("add")
-@app.command()
-def create(
-    name: str | None = Option(
-        default=None,
-        callback=validators.validate_typer_param(validators.validate_name, "name"),
-    ),
-    description: str | None = Option(
-        default=None,
-    ),
-    frequency: int | None = Option(
-        default=None,
-    ),
-    automatic: bool | None = Option(
-        default=None,
-    ),
-):
+def run_create(
+    name: str | None = None,
+    description: str | None = None,
+    frequency: int | None = None,
+    automatic: bool | None = None,
+) -> Profile:
     profiles = profile.load()
     profile_names = set(profiles.keys())
 
@@ -139,86 +145,27 @@ def create(
         description=description,  # type: ignore
         frequency=frequency,  # type: ignore
         automatic=automatic,  # type: ignore
+        state=ProfileState.CREATED,
     )
     p.save()
 
     utils.console.success(f"Profile added! Total count: {len(profiles)}")
 
-
-@app.command("list")
-@app.command()
-def query():
-    profiles = profile.load()
-    profiles_list = list(profiles.values())
-    profiles_list.sort(key=lambda p: p.name)
-
-    profile.print_profiles(profiles_list)
-    console.print(f"\nTotal: {len(profiles)}")
+    return p
 
 
-@app.command("delete")
-@app.command()
-def remove(
-    name: str = Argument(),
+def run_configure(
+    p: Profile,
+    selected_remote_names: list[str] = [],
+    source_directories: list[Path] = [],
+    encryption_passphrase: str | None = None,
+    compression: str | None = None,
+    keep_daily: int | None = None,
+    keep_weekly: int | None = None,
+    keep_monthly: int | None = None,
 ):
-    profiles: dict[str, Profile] = profile.load()
-    if name not in profiles:
-        utils.console.abort_with_error("Profile doesn't exist.")
-
-    p.delete()
-    utils.console.success(f"Profile removed! Total count: {len(profiles)}")
-
-
-@app.command("configure")
-@app.command()
-def setup(
-    name: str = Argument(),
-    selected_remote_names: list[str] = Option([], "--remote", "-r"),
-    source_directories: list[Path] = Option([], "--source", "-s"),
-    encryption_passphrase: str | None = Option(
-        None,
-        "--passphrase",
-        "-p",
-        callback=validators.validate_typer_param(
-            validators.validate_encryption_passphrase, "passphrase"
-        ),
-    ),
-    compression: str | None = Option(
-        None,
-        "--compression",
-        "-c",
-        callback=validators.validate_typer_param(
-            validators.validate_compression_specifier, "compression"
-        ),
-    ),
-    keep_daily: int | None = Option(
-        None,
-        "--daily",
-        "-d",
-        callback=validators.validate_typer_param(validators.validate_int, "keep_daily"),
-    ),
-    keep_weekly: int | None = Option(
-        None,
-        "--weekly",
-        "-w",
-        callback=validators.validate_typer_param(validators.validate_int, "keep_daily"),
-    ),
-    keep_monthly: int | None = Option(
-        None,
-        "--monthly",
-        "-m",
-        callback=validators.validate_typer_param(validators.validate_int, "keep_daily"),
-    ),
-):
-
-    profiles = profile.load()
     remotes = remote.load()
     remote_names = sorted(list(remotes.keys()))
-
-    # check if given profile exists
-    if name not in profiles:
-        utils.console.abort_with_error("Profile doesn't exist.")
-    p = profiles[name]
 
     # check if at least one remote is configured
     if len(remotes) == 0:
@@ -324,60 +271,33 @@ def setup(
     config.save(p.name)
     path = config.get_path(p.name).resolve()
 
-    utils.console.success(
+    utils.console.info(
         f"The Borgmatic config has been saved: [link={path.as_uri()}][cyan]{path}[/cyan][/link]"
     )
-    utils.console.success(
-        "Setup complete! Run the following command to export the paper key:"
-    )
-    utils.console.print_command(f"kistn profile init {p.name}")
+
+    p.state = ProfileState.CONFIGURED
+    p.save()
+    utils.console.success("Setup complete!")
 
 
-@app.command()
-def init(
-    name: str = Argument(),
-):
-    profiles = profile.load()
+def run_init(p: Profile):
+    with utils.console.status("Initializing profile..."):
+        utils.borgmatic.init_repo(p.borgmatic_config_file)
 
-    # check if given profile exists
-    if name not in profiles:
-        utils.console.abort_with_error("Profile doesn't exist.")
-    p = profiles[name]
-
-    config_file = BorgmaticConfig.get_path(p.name)
-    if not config_file.exists():
-        utils.console.abort_with_error_and_command(
-            "The backup profile is not yet configured. Please run the following command first:",
-            f"kistn profile setup {p.name}",
-        )
-
-    utils.borgmatic.init_repo(config_file)
+    p.state = ProfileState.INITIALIZED
+    p.save()
     utils.console.success("Profile initiated!")
 
 
-@app.command()
-def key(
-    name: str = Argument(),
-):
-    profiles = profile.load()
-
-    # check if given profile exists
-    if name not in profiles:
-        utils.console.abort_with_error("Profile doesn't exist.")
-    p = profiles[name]
-
-    config_file = BorgmaticConfig.get_path(p.name)
-    if not config_file.exists():
-        utils.console.abort_with_error_and_command(
-            "The backup profile is not yet configured. Please run the following command first:",
-            f"kistn profile setup {p.name}",
-        )
-
-    paper_key = utils.borgmatic.export_paper_key(config_file)
+def run_key(p: Profile):
+    paper_key = utils.borgmatic.export_paper_key(p.borgmatic_config_file)
 
     key_file = Path.cwd() / f"kistn.{p.name}-paper-key.txt"
     key_file.touch(mode=0o600)
     key_file.write_text(paper_key)
+
+    p.state = ProfileState.READY
+    p.save()
 
     utils.console.hint(
         "Why do we need a paper key? The passphrase that you entered when setting up the backup profile isn't actually used to encrypt your backed up data. Instead a much more complex, random encryption key is generated and stored on your machine for encryption. The passphrase is only used to unlock that key. The problem is that when your machine is lost, the hard-drive is wiped, etc. you cannot access that key anymore. This is where the paper key comes in. It is a human-readable representation of the actual encryption key."
@@ -393,7 +313,7 @@ def key(
         f"The paper key was saved at: {utils.console.format_path(key_file)}"
     )
 
-    console.print(
+    utils.console.print(
         Panel(
             f"[bold white]{paper_key}[/bold white]",
             title="[bold yellow]📄 Emergency Paper Key[/bold yellow]",
@@ -401,3 +321,173 @@ def key(
             expand=True,
         )
     )
+
+
+@app.command()
+def wizard(
+    name: str = Argument(
+        callback=validators.validate_typer_param(validators.validate_name, "name"),
+    ),
+):
+    p = profile.get_profile_by_name(name)
+
+    # STEP 1: create
+    if p is None or True:
+        utils.console.print_step_header(
+            1,
+            "CREATE BACKUP PROFILE",
+            "Define the name, schedule, and basic details for your new backup.",
+        )
+        p = run_create(name)
+    else:
+        utils.console.info("Skipping already completed steps.")
+
+        if p.state == ProfileState.READY:
+            utils.console.info("Nothing left to do. Profile is ready to use.")
+
+    # STEP 2: configure
+    if p.state < ProfileState.CONFIGURED:
+        utils.console.print_step_header(
+            2,
+            "CONFIGURE BACKUP AND REMOTE HOSTS",
+            "Select your source directories, destination hosts, and encryption settings.",
+        )
+        run_configure(p)
+
+    # STEP 3: initialize
+    if p.state < ProfileState.INITIALIZED:
+        utils.console.print_step_header(
+            3,
+            "INITIALIZE REMOTE REPOSITORIES",
+            "Prepare and initialize the secure repositories on your remote destinations.",
+        )
+        run_init(p)
+
+    # STEP 4: export encryption key
+    if p.state < ProfileState.READY:
+        utils.console.print_step_header(
+            4,
+            "EXPORT ENCRYPTION KEY",
+            "Generate your emergency paper key to ensure you can always recover your data.",
+        )
+        run_key(p)
+
+
+@app.command()
+def create(
+    name: str | None = Option(
+        default=None,
+        callback=validators.validate_typer_param(validators.validate_name, "name"),
+    ),
+    description: str | None = Option(
+        default=None,
+    ),
+    frequency: int | None = Option(
+        default=None,
+    ),
+    automatic: bool | None = Option(
+        default=None,
+    ),
+):
+    run_create(
+        name=name,
+        description=description,
+        frequency=frequency,
+        automatic=automatic,
+    )
+
+
+@app.command()
+def configure(
+    name: str = Argument(),
+    selected_remote_names: list[str] = Option([], "--remote", "-r"),
+    source_directories: list[Path] = Option([], "--source", "-s"),
+    encryption_passphrase: str | None = Option(
+        None,
+        "--passphrase",
+        "-p",
+        callback=validators.validate_typer_param(
+            validators.validate_encryption_passphrase, "passphrase"
+        ),
+    ),
+    compression: str | None = Option(
+        None,
+        "--compression",
+        "-c",
+        callback=validators.validate_typer_param(
+            validators.validate_compression_specifier, "compression"
+        ),
+    ),
+    keep_daily: int | None = Option(
+        None,
+        "--daily",
+        "-d",
+        callback=validators.validate_typer_param(validators.validate_int, "keep_daily"),
+    ),
+    keep_weekly: int | None = Option(
+        None,
+        "--weekly",
+        "-w",
+        callback=validators.validate_typer_param(validators.validate_int, "keep_daily"),
+    ),
+    keep_monthly: int | None = Option(
+        None,
+        "--monthly",
+        "-m",
+        callback=validators.validate_typer_param(validators.validate_int, "keep_daily"),
+    ),
+):
+
+    p = profile.get_profile_by_name_ensured(name)
+    ensure_state(p, ProfileState.CREATED)
+    run_configure(
+        p,
+        selected_remote_names,
+        source_directories,
+        encryption_passphrase,
+        compression,
+        keep_daily,
+        keep_weekly,
+        keep_monthly,
+    )
+
+
+@app.command()
+def init(
+    name: str = Argument(),
+):
+    p = profile.get_profile_by_name_ensured(name)
+    ensure_state(p, ProfileState.CONFIGURED)
+    run_init(p)
+
+
+@app.command()
+def key(
+    name: str = Argument(),
+):
+    p = profile.get_profile_by_name_ensured(name)
+    ensure_state(p, ProfileState.INITIALIZED)
+    run_key(p)
+
+    p.state = ProfileState.READY
+    p.save()
+
+
+@app.command("list")
+def query():
+    profiles = profile.load()
+    profiles_list = list(profiles.values())
+    profiles_list.sort(key=lambda p: p.name)
+
+    profile.print_profiles(profiles_list)
+    utils.console.print(f"\nTotal: {len(profiles)}")
+
+
+@app.command()
+def delete(
+    name: str = Argument(),
+):
+    profiles = profile.load()
+    p = profile.get_profile_by_name_ensured(name, profiles)
+    p.delete()
+    utils.console.success(f"Profile removed! Total count: {len(profiles)}")

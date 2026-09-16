@@ -1,6 +1,7 @@
 from pathlib import Path
 
 import typer
+from rich.align import Align
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
@@ -74,3 +75,25 @@ def print_command(command: str):
 
 def format_path(path: Path) -> str:
     return f"[link={path.resolve().as_uri()}][cyan]{path.resolve()}[/cyan][/link]"
+
+
+def status(*args, **kwargs):
+    return console.status(*args, **kwargs)
+
+
+def print(message=None):
+    return console.print(message or "")
+
+
+def print_step_header(number: int, title: str, description: str):
+    panel = Panel(
+        f"[dim]{description}[/dim]",
+        title=f"[bold cyan]STEP {number}[/bold cyan] [white]|[/white] [bold green]{title}[/bold green]",
+        title_align="center",
+        expand=False,
+        border_style="blue",
+        padding=(1, 3),
+    )
+    print()
+    print(Align.center(panel))
+    print()
