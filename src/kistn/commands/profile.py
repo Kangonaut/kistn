@@ -114,7 +114,9 @@ def create(
             ).unsafe_ask()
 
         if not frequency:
-            utils.console.hint("How often do you want to run this backup?")
+            utils.console.hint(
+                "How often do you want to run this backup? A frequency of [yellow]1[/yellow] means every day. A frequency of [yellow]7[/yellow] means every week."
+            )
             frequency = int(
                 questionary.text(
                     message="Frequency (in days):",

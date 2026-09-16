@@ -1,11 +1,14 @@
+from datetime import datetime, timezone
 from pathlib import Path
 
 import typer
 from rich.console import Console
+from rich.table import Table
 from typer.params import Argument
 
 from kistn import commands, consts, profile, settings, utils
 from kistn.borgmatic import BorgmaticConfig
+from kistn.profile import Profile
 from kistn.settings import Settings
 from kistn.utils.network import is_host_reachable
 from kistn.utils.system import send_notification
@@ -24,6 +27,30 @@ def setup():
     if not consts.CONFIG_FILE.exists():
         new = Settings.from_default()
         settings.save(new)
+
+
+def print_profiles_status(profiles: list[Profile]):
+    if not profiles:
+        console.print(
+            "No profiles found. Create a profile using [cyan]`kistn profile create`[/cyan]."
+        )
+        return
+
+    table = Table(box=None)
+    table.add_column("Profile", style="bold green")
+    table.add_column("Last Backup", style="white")
+    table.add_column("Due Date", style="white")
+    # table.add_column("Repository State", style="white")
+
+    for p in profiles:
+        config_file = BorgmaticConfig.get_path(p.name)
+        table.add_row(
+            p.name,
+            p.format_days_since_backup(),
+            p.format_due_date(),
+        )
+
+    console.print(table)
 
 
 @app.command("run")
@@ -68,6 +95,18 @@ def backup(
     )
     utils.console.success("Backup completed!")
 
+    p.last_backup = datetime.now(timezone.utc)
+    p.save()
+
+
+@app.command()
+def status():
+    profiles = profile.load()
+    profile_list = list(profiles.values())
+    profile_list.sort(key=lambda p: p.name)
+
+    print_profiles_status(profile_list)
+
 
 def main():
     setup()
@@ -102,27 +141,6 @@ if __name__ == "__main__":
 #                 )
 #
 #
-# @app.command()
-# def status():
-#     """Prints last backup age and repository state."""
-#     days = get_days_since_last_backup()
-#
-#     table = Table(title="Backup System Status")
-#     table.add_column("Property", style="cyan")
-#     table.add_column("Value", style="magenta")
-#
-#     if days is None:
-#         table.add_row("Last Backup", "Never recorded locally")
-#     else:
-#         color = "green" if days <= 7 else "red"
-#         table.add_row("Last Backup", f"[{color}]{days} day(s) ago[/{color}]")
-#
-#     reachable = is_host_reachable(STORAGE_BOX_HOST, port=23)
-#     table.add_row(
-#         "Storage Box Reachable", "[green]Yes[/green]" if reachable else "[red]No[/red]"
-#     )
-#
-#     console.print(table)
 #
 #
 # @app.command(name="test-restore")

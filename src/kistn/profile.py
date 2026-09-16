@@ -17,11 +17,31 @@ class Profile(BaseModel):
     automatic: bool
     last_backup: datetime | None = None
 
-    def days_since_backup_str(self) -> str:
+    def format_due_date(self) -> str:
+        if not self.last_backup:
+            return "[bold green]today[/bold green]"
+
+        delta = datetime.now(timezone.utc) - self.last_backup
+        days = self.frequency - delta.days
+
+        if days == 0:
+            return "[bold green]today[/bold green]"
+        if days == 1:
+            return "[bold blue]tomorrow[/bold blue]"
+        if days == -1:
+            return "[bold red]yesterday[/bold red]"
+        if days > 1:
+            return f"[bold blue]in {days} days[/bold blue]"
+        else:
+            return f"[bold red]{days} days ago[/bold red]"
+
+    def format_days_since_backup(self) -> str:
         if not self.last_backup:
             return "never"
+
         delta = datetime.now(timezone.utc) - self.last_backup
         days = delta.days
+
         if days == 0:
             return "today"
         if days == 1:
