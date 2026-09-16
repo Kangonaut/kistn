@@ -1,28 +1,46 @@
 import shutil
 import subprocess
 
-SYSTEM_DEPS: list[str] = [
-    "borg",
-    "borgmatic",
-    "ssh",
-    "ssh-keygen",
-    "ssh-copy-id",
-]
+from packaging.version import parse as parse_version
+
+from . import console
 
 
-def check_system_dependencies() -> list[str]:
-    """
-    Checks if all required dependencies are installed.
+def check_system_dependency(
+    command: str,
+    min_version: str | None = None,
+    version_flag: str = "--version",
+) -> bool:
+    # 1. check if the command exists
+    if shutil.which(command) is None:
+        console.error(
+            f"Missing dependency: [bold cyan]{command}[/bold cyan] is not installed or not in your PATH."
+        )
+        return False
 
-    Returns a list of missing package names.
-    """
-    missing = []
+    # 2. if a minimum version is required, check it
+    if min_version:
+        try:
+            result = subprocess.run(
+                [command, version_flag], capture_output=True, text=True, check=True
+            )
+            current_version_str = result.stdout.strip()
 
-    for package in SYSTEM_DEPS:
-        if shutil.which(package) is None:
-            missing.append(package)
+            if parse_version(current_version_str) < parse_version(min_version):
+                console.error(
+                    f"[bold cyan]{command}[/bold cyan] is outdated. "
+                    f"Minimum required is [yellow]{min_version}[/yellow], "
+                    f"but found [red]{current_version_str}[/red]."
+                )
+                return False
 
-    return missing
+        except subprocess.CalledProcessError:
+            console.warn(
+                f"Found [cyan]{command}[/cyan], but could not determine its version."
+            )
+            return True
+
+    return True
 
 
 def send_notification(

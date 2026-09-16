@@ -11,7 +11,7 @@ from kistn.borgmatic import BorgmaticConfig
 from kistn.profile import Profile, ProfileState
 from kistn.settings import Settings
 from kistn.utils.network import is_host_reachable
-from kistn.utils.system import send_notification
+from kistn.utils.system import check_system_dependency, send_notification
 
 app = typer.Typer(
     help="📦 **kistn**: A CLI manager for Borgmatic and Hetzner Storage Box backups.",
@@ -87,6 +87,30 @@ def backup(
 
     p.last_backup = datetime.now(timezone.utc)
     p.save()
+
+
+@app.command()
+def doctor():
+    with utils.console.status("Checking system dependencies..."):
+        all_good = all(
+            [
+                utils.system.check_system_dependency(command="borg"),
+                utils.system.check_system_dependency(
+                    command="borgmatic", min_version="1.8.0"
+                ),
+                utils.system.check_system_dependency(command="ssh"),
+                utils.system.check_system_dependency(command="sshpass"),
+                utils.system.check_system_dependency(command="ssh-keygen"),
+                utils.system.check_system_dependency(command="ssh-copy-id"),
+            ]
+        )
+
+    if all_good:
+        utils.console.success("All system dependencies are installed and up to date!")
+    else:
+        utils.console.abort_with_error(
+            "Please install or upgrade the missing dependencies."
+        )
 
 
 @app.command()
