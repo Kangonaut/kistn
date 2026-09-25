@@ -23,3 +23,8 @@ kistn = "kistn.main:main"
 [build-system]
 requires = ["uv_build>=0.12.5,<0.13.0"]
 build-backend = "uv_build"
+
+[project.urls]
+Homepage = "https://github.com/Kangonaut/kistn"
+Repository = "https://github.com/Kangonaut/kistn"
+"Bug Tracker" = "https://github.com/Kangonaut/kistn/issues"
