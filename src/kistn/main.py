@@ -151,13 +151,6 @@ def check_overdue(
             )
 
 
-# @app.command()
-# def mount(mount_point: Path = typer.Argument(..., help="Empty directory to mount to")):
-#     """Mount the Borg repository to a local directory for easy file browsing."""
-#     # Use borgmatic mount --mount-point <mount_point>
-#     pass
-
-
 def main():
     setup()
     app()

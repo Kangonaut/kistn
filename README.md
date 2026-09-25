@@ -6,7 +6,7 @@
 
 </div>
 
-`kistn` is a CLI manager for [Borgmatic](https://torsion.org/borgmatic/) and [Hetzner storage box](https://www.hetzner.com/storage/storage-box/) backups.
+`kistn` is lightweight backup solution using [BorgBackup](https://www.borgbackup.org/), [Borgmatic](https://torsion.org/borgmatic/) and a [Hetzner storage box](https://www.hetzner.com/storage/storage-box/).
 
 ### Why does this project exist?
 
