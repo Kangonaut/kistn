@@ -139,13 +139,13 @@ def check_overdue(
     for p in due_profiles:
         if not quiet:
             utils.console.warn(
-                f"{p.name}: Your last backup was {p.days_since_backup} days ago. Run [cyan]`kistn run {p.name}`[/cyan] to start the backup."
+                f"{p.name}: Your last backup was {p.format_days_since_backup()}. Run [cyan]`kistn run {p.name}`[/cyan] to start the backup."
             )
 
         if notification:
             send_notification(
                 title=f"{p.name} - Backup Overdue",
-                message=f"Your last backup was {p.days_since_backup} days ago. Run `kistn run {p.name}` to start the backup.",
+                message=f"Your last backup was {p.format_days_since_backup()}. Run `kistn run {p.name}` to start the backup.",
                 urgency="critical",
                 icon="dialog-warning",
             )
