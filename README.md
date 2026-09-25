@@ -74,7 +74,9 @@ TODO: add instructions for other shells like `fish`
 
 **NOTE:** If the `kistn remote wizard` command fails or you interrupt it, you can continue the setup by simply running the command again.
 
-![example output](assets/remote-wizard.png)
+<div align="center">
+    <img src="assets/remote-wizard.png" width="640"/>
+</div>
 
 ### 6. Create a Backup Profile
 
@@ -84,7 +86,9 @@ TODO: add instructions for other shells like `fish`
 
 **NOTE:** If the `kistn remote profile` command fails or you interrupt it, you can continue the setup by simply running the command again.
 
-![example output](assets/profile-wizard.png)
+<div align="center">
+    <img src="assets/profile-wizard.png" width="640"/>
+</div>
 
 ### 7. Create your first Backup
 
