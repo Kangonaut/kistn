@@ -1,8 +1,7 @@
 [project]
 name = "kistn"
 version = "0.1.0"
-description = "a lightweight backup solution using BorgBackup and a Hetzner storage box"
-
+description = "A lightweight backup solution using BorgBackup and a Hetzner storage box."
 readme = "README.md"
 authors = [
     { name = "Kangonaut", email = "120662571+Kangonaut@users.noreply.github.com" }
