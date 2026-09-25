@@ -164,7 +164,7 @@ def get_remote_by_name_ensured(
 def get_remote_by_name(
     name: str,
     remotes: dict[str, Remote] | None = None,
-    check=True,
+    check: bool = False,
 ) -> Remote | None:
     if not remotes:
         remotes = load()
