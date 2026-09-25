@@ -1,0 +1,24 @@
+name: Publish to PyPI
+
+on:
+  release:
+    types: [published] # Runs when you publish a new GitHub Release
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment: pypi # Must match the environment name from PyPI exactly
+    permissions:
+      id-token: write # CRITICAL: Required for Trusted Publishing
+      contents: read
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        
+      - name: Build and Publish
+        run: |
+          uv build
+          uv publish
